@@ -1,0 +1,7 @@
+# build output
+pointer_pool
+*.o
+*.dSYM/
+
+# macOS
+.DS_Store
