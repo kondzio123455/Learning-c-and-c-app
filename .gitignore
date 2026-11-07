@@ -3,5 +3,8 @@ pointer_pool
 *.o
 *.dSYM/
 
+# saved progress (each computer keeps its own)
+progress.txt
+
 # macOS
 .DS_Store
