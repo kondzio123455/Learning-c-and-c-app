@@ -104,8 +104,14 @@ void drawCodeLine(const char *line, float x, float y, float size) {
         Color colour = CODE_PLAIN;
 
         if (p[0] == '/' && p[1] == '/') {
-            // A comment: the rest of the line
+            // A // comment: the rest of the line
             while (p[length] != '\0' && p[length] != '\n') length++;
+            colour = CODE_COMMENT;
+        } else if (p[0] == '/' && p[1] == '*') {
+            // A /* comment */: up to the closing */ (or the end of the line)
+            length = 2;
+            while (p[length] != '\0' && p[length] != '\n' && !(p[length] == '*' && p[length + 1] == '/')) length++;
+            if (p[length] == '*') length += 2;
             colour = CODE_COMMENT;
         } else if (*p == '\'' || *p == '"') {
             // A char or string: up to the matching quote
@@ -164,6 +170,25 @@ float drawCode(const char *code, float x, float y, float size, float width) {
     return lineY - y;
 }
 
+// Draws code with a line number in front of each line (for FIND THE BUG tasks)
+float drawNumberedCode(const char *code, float x, float y, float size) {
+    float lineY = y;
+    const char *line = code;
+    int number = 1;
+
+    while (true) {
+        drawText(TextFormat("%2d", number), x, lineY, size, COLOUR_MUTED);
+        drawCodeLine(line, x + charWidth(size) * 4, lineY, size);
+        lineY += lineHeight(size);
+        number++;
+
+        const char *nextLine = strchr(line, '\n');
+        if (nextLine == nullptr) break;
+        line = nextLine + 1;
+    }
+    return lineY - y;
+}
+
 // ============================================================
 // Drawing the box
 // ============================================================
@@ -185,7 +210,7 @@ void drawCodeBox(CodeBox *box, int highlightLine) {
                       (int)area.width - 4, (int)lineHeight(size), Color{ 40, 90, 50, 255 });
     }
 
-    if (box->length == 0 && !box->focused) {
+    if (box->length == 0) {
         drawText(box->placeholder, x, y, size, COLOUR_MUTED);
     } else {
         drawCode(box->text, x, y, size, area.width - 20);

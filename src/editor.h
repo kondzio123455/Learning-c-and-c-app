@@ -22,6 +22,7 @@ void clearCodeBox(CodeBox *box);
 void updateCodeBox(CodeBox *box);                      // reads the keyboard if focused
 void drawCodeBox(CodeBox *box, int highlightLine);     // highlightLine = -1 for none
 float drawCode(const char *code, float x, float y, float size, float width);   // syntax-coloured code, returns height
+float drawNumberedCode(const char *code, float x, float y, float size);         // the same, with line numbers
 int countLines(const char *text);
 
 #endif

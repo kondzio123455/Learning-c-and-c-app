@@ -1,6 +1,8 @@
 #include "raylib.h"
 #include "app.h"
 #include "ui.h"
+#include "effects.h"
+#include <cmath>
 
 // The whole app's state. Every screen function gets a pointer to it.
 App app;
@@ -11,26 +13,37 @@ void setupApp(App *app) {
     app->quit = false;
     app->gameInProgress = false;
 
-    app->levelsDone = loadProgress();
+    loadProgress(&app->levelsDone, app->stars);
     app->lessonShown = false;
     app->askCount = 0;
     app->questionLevel = 1;
     app->version = 0;
     app->reviewMode = false;
     app->callNeeded = false;
+    app->practising = false;
+    app->solved = false;
+    app->hintsShown = 0;
+    app->chosenCount = 0;
 
     setupCodeBox(&app->answerBox, 4, "Click here and type your code...");
-    setupCodeBox(&app->callBox, 1, "Ball *target = &balls[3];");
+    setupCodeBox(&app->callBox, 1, "Ball *target = &balls[...];");
     app->feedback[0] = '\0';
     app->feedbackGood = false;
 
     app->runTimer = 0;
     app->power = 0;
-    app->powerFromCode = false;
     app->charging = false;
+    app->strikeTimer = 0;
+    app->aimX = RACK_X;
+    app->aimY = RACK_Y;
+
+    app->phaseTimer = 0;
+    app->wrongTimer = 0;
+    app->bannerTimer = 0;
 
     app->codexLevel = 1;
     app->confirmReset = false;
+    app->confirmUnlockAll = false;
     app->logView = nullptr;
 }
 
@@ -38,106 +51,128 @@ void setupApp(App *app) {
 // Main menu
 // ============================================================
 
+// A few balls drifting around behind the menu
+const int MENU_BALLS = 7;
+float menuX[MENU_BALLS], menuY[MENU_BALLS], menuVX[MENU_BALLS], menuVY[MENU_BALLS], menuRoll[MENU_BALLS];
+int menuNumber[MENU_BALLS] = { 0, 1, 9, 8, 3, 14, 6 };
+
+void setupMenuBalls() {
+    for (int i = 0; i < MENU_BALLS; i++) {
+        menuX[i] = (float)GetRandomValue(650, 1200);
+        menuY[i] = (float)GetRandomValue(120, 640);
+        menuVX[i] = (float)GetRandomValue(-60, 60);
+        menuVY[i] = (float)GetRandomValue(-60, 60);
+        menuRoll[i] = 0;
+    }
+}
+
 void menuScreen(App *app) {
+    float dt = GetFrameTime();
     ClearBackground(COLOUR_BG);
 
-    drawBold("POINTER POOL", 90, 120, 64, COLOUR_ACCENT);
-    drawText("Learn C and C++ pointers, one shot at a time.", 94, 200, 20, COLOUR_TEXT);
-    drawText("Based on the Pointers lectures and Labs 1 and 2.", 94, 230, 16, COLOUR_MUTED);
-
-    // A little rack of balls for decoration
-    for (int row = 0; row < 5; row++) {
-        for (int i = 0; i <= row; i++) {
-            int number = row * (row + 1) / 2 + i + 1;
-            drawBall(number, 880 + row * 40.0f, 230 + (i - row / 2.0f) * 46, 20);
-        }
+    // Move the drifting balls and bounce them off the edges of their area
+    for (int i = 0; i < MENU_BALLS; i++) {
+        menuX[i] += menuVX[i] * dt;
+        menuY[i] += menuVY[i] * dt;
+        if (menuX[i] < 640 || menuX[i] > 1240) menuVX[i] = -menuVX[i];
+        if (menuY[i] < 100 || menuY[i] > 660) menuVY[i] = -menuVY[i];
+        float speed = sqrtf(menuVX[i] * menuVX[i] + menuVY[i] * menuVY[i]);
+        menuRoll[i] += speed * dt / 26;
+        float dx = 1, dy = 0;
+        if (speed > 0) { dx = menuVX[i] / speed; dy = menuVY[i] / speed; }
+        drawBallRolling(menuNumber[i], menuX[i], menuY[i], 26, menuRoll[i], dx, dy, 0.9f);
     }
-    drawBall(0, 760, 230, 20);
 
-    // Buttons
+    float glow = 0.85f + 0.15f * sinf((float)GetTime() * 2);
+    drawBold("POINTER POOL", 90, 120, 64, Fade(COLOUR_ACCENT, glow));
+    drawText("Learn C and C++ pointers, one shot at a time.", 94, 200, 20, COLOUR_TEXT);
+    drawText("Built from the Pointers, Memory, Classes and Linked List lectures,", 94, 232, 15, COLOUR_MUTED);
+    drawText("and Labs 1 and 2.", 94, 252, 15, COLOUR_MUTED);
+
     const char *playLabel = "Play";
     if (app->gameInProgress) playLabel = "Continue";
     float x = 94;
-    float y = 310;
+    float y = 300;
     if (button(Rectangle{ x, y, 260, 48 }, playLabel)) {
-        if (!app->gameInProgress) startNewGame(app);
+        if (!app->gameInProgress) {
+            startNewGame(app);
+        } else if (app->practising) {
+            // Coming back from practice: get a fresh question for this shot
+            app->practising = false;
+            if (app->phase == PHASE_CODE || app->phase == PHASE_LESSON) prepareNextShot(app);
+        }
         app->screen = SCREEN_PLAY;
     }
     if (app->gameInProgress && button(Rectangle{ x + 280, y, 200, 48 }, "New game")) {
         startNewGame(app);
         app->screen = SCREEN_PLAY;
     }
-    if (button(Rectangle{ x, y + 64, 260, 48 }, "Lessons (Codex)")) app->screen = SCREEN_CODEX;
+    if (button(Rectangle{ x, y + 64, 260, 48 }, "Lessons & practice")) app->screen = SCREEN_CODEX;
     if (button(Rectangle{ x, y + 128, 260, 48 }, "Progress")) {
         app->confirmReset = false;
+        app->confirmUnlockAll = false;
         app->screen = SCREEN_PROGRESS;
     }
     if (button(Rectangle{ x, y + 192, 260, 48 }, "Quit")) app->quit = true;
 
-    drawText(TextFormat("%d of %d concepts done", app->levelsDone, LEVEL_COUNT), 94, 590, 18, COLOUR_TEXT);
-    drawText("Two players, one computer. Write the code, then take the shot.", 94, 620, 16, COLOUR_MUTED);
+    int totalStars = 0;
+    for (int n = 1; n <= LEVEL_COUNT; n++) totalStars += app->stars[n];
+    drawText(TextFormat("%d of %d concepts done", app->levelsDone, LEVEL_COUNT), 94, 576, 18, COLOUR_TEXT);
+    drawStar(104, 616, 9, COLOUR_ACCENT);
+    drawText(TextFormat("%d of %d stars", totalStars, LEVEL_COUNT * 3), 122, 607, 18, COLOUR_TEXT);
+    drawText("Two players, one computer. Write the code, then take the shot.", 94, 646, 15, COLOUR_MUTED);
 }
 
 // ============================================================
-// Codex: re-read every concept you've reached
+// Codex: re-read every concept you've reached, and practise it
 // ============================================================
 
 void codexScreen(App *app) {
     ClearBackground(COLOUR_BG);
     if (IsKeyPressed(KEY_ESCAPE)) app->screen = SCREEN_MENU;
 
-    drawBold("Codex", 30, 20, 34, COLOUR_ACCENT);
-    drawText("Every concept you've reached. Click one to read it again.", 30, 62, 16, COLOUR_MUTED);
+    drawBold("Lessons", 30, 18, 34, COLOUR_ACCENT);
+    drawText("Every concept you've reached. Click one to read it, then practise it.", 30, 60, 16, COLOUR_MUTED);
 
-    // The list on the left
+    // The list on the left (54 levels, so two columns)
+    Vector2 mouse = GetMousePosition();
     for (int n = 1; n <= LEVEL_COUNT; n++) {
         Level *level = getLevel(n);
-        float y = 96 + (n - 1) * 20.0f;
-        Rectangle row = { 30, y, 340, 20 };
-
-        // A thin line between chapters
-        if (n > 1 && getLevel(n - 1)->chapter != level->chapter) {
-            DrawLine(30, (int)y, 370, (int)y, Color{ 60, 65, 80, 255 });
+        int column = 0;
+        int row = n - 1;
+        if (n > 27) {
+            column = 1;
+            row = n - 28;
         }
+        float x = 20 + column * 205.0f;
+        float y = 92 + row * 22.0f;
+        Rectangle box = { x, y, 200, 21 };
 
         if (!reached(app, n)) {
-            drawText(TextFormat("%2d  locked", n), 36, y + 2, 15, Color{ 80, 85, 100, 255 });
+            drawText(TextFormat("%2d  locked", n), x + 6, y + 3, 14, Color{ 80, 85, 100, 255 });
             continue;
         }
-
-        bool hover = CheckCollisionPointRec(GetMousePosition(), row);
-        if (n == app->codexLevel) DrawRectangleRec(row, Color{ 70, 62, 20, 255 });
-        else if (hover) DrawRectangleRec(row, COLOUR_PANEL);
-        drawText(TextFormat("%2d  %s", n, level->title), 36, y + 2, 15, COLOUR_TEXT);
+        bool hover = CheckCollisionPointRec(mouse, box);
+        if (n == app->codexLevel) DrawRectangleRec(box, Color{ 70, 62, 20, 255 });
+        else if (hover) DrawRectangleRec(box, COLOUR_PANEL);
+        drawText(TextFormat("%2d  %s", n, level->shortName), x + 6, y + 3, 14, COLOUR_TEXT);
+        drawStars(x + 152, y + 10, app->stars[n], 5);
         if (hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) app->codexLevel = n;
     }
 
     // The chosen concept on the right
     if (!reached(app, app->codexLevel)) app->codexLevel = 1;
     Level *level = getLevel(app->codexLevel);
-    float x = 420;
-    Rectangle page = { x - 20, 90, SCREEN_WIDTH - x, SCREEN_HEIGHT - 160.0f };
+    float x = 450;
+    Rectangle page = { x - 20, 88, SCREEN_WIDTH - x, SCREEN_HEIGHT - 158.0f };
     DrawRectangleRec(page, COLOUR_PANEL);
     drawText(TextFormat("Level %d - Chapter %d: %s", app->codexLevel, level->chapter, chapterName(level->chapter)),
-             x, 104, 14, COLOUR_MUTED);
-    drawBold(level->title, x, 124, 28, COLOUR_TEXT);
-    float width = SCREEN_WIDTH - x - 40;
-    float y = drawLessonContent(level, x, 168, width) + 18;
+             x, 100, 14, COLOUR_MUTED);
+    drawBold(level->title, x, 120, 28, COLOUR_TEXT);
+    drawLessonContent(level, x, 162, SCREEN_WIDTH - x - 40);
 
-    // A practice task for revising (the first version of this level's task)
-    Task *task = &level->tasks[0];
-    drawText("Practice", x, y, 14, COLOUR_ACCENT);
-    y += 20;
-    y += drawWrapped(task->task, x, y, width, 15, COLOUR_TEXT) + 6;
-    float codeHeight = countLines(task->code) * lineHeight(14) + 14;
-    if (y + codeHeight < page.y + page.height - 10) {
-        DrawRectangle((int)x, (int)y, (int)width, (int)codeHeight, COLOUR_CODE_BG);
-        drawCode(task->code, x + 10, y + 7, 14, width - 20);
-    }
-
-    if (button(Rectangle{ SCREEN_WIDTH - 170.0f, SCREEN_HEIGHT - 56.0f, 150, 40 }, "Back")) {
-        app->screen = SCREEN_MENU;
-    }
+    if (button(Rectangle{ x - 20, SCREEN_HEIGHT - 56.0f, 220, 40 }, "Practise this >")) startPractice(app, app->codexLevel);
+    if (button(Rectangle{ SCREEN_WIDTH - 170.0f, SCREEN_HEIGHT - 56.0f, 150, 40 }, "Back")) app->screen = SCREEN_MENU;
 }
 
 // ============================================================
@@ -148,82 +183,101 @@ void progressScreen(App *app) {
     ClearBackground(COLOUR_BG);
     if (IsKeyPressed(KEY_ESCAPE)) app->screen = SCREEN_MENU;
 
-    drawBold("Progress", 30, 20, 34, COLOUR_ACCENT);
+    drawBold("Progress", 30, 16, 34, COLOUR_ACCENT);
     drawText(TextFormat("%d of %d concepts done. Pot one of your balls to unlock the next one.", app->levelsDone, LEVEL_COUNT),
-             30, 62, 16, COLOUR_MUTED);
+             30, 56, 15, COLOUR_MUTED);
 
-    // Progress bar
-    Rectangle bar = { 30, 90, SCREEN_WIDTH - 60.0f, 12 };
+    Rectangle bar = { 30, 80, SCREEN_WIDTH - 60.0f, 10 };
     DrawRectangleRec(bar, COLOUR_PANEL);
-    DrawRectangle(30, 90, (int)(bar.width * app->levelsDone / LEVEL_COUNT), 12, COLOUR_GOOD);
+    DrawRectangle(30, 80, (int)(bar.width * app->levelsDone / LEVEL_COUNT), 10, COLOUR_GOOD);
 
-    // One row per chapter, with a box for each level
-    float rowY = 130;
+    // One row per chapter (long chapters wrap onto a second row)
+    float rowY = 104;
     int column = 0;
+    Vector2 mouse = GetMousePosition();
     for (int n = 1; n <= LEVEL_COUNT; n++) {
         Level *level = getLevel(n);
         bool newChapter = (n == 1) || getLevel(n - 1)->chapter != level->chapter;
         if (newChapter) {
-            if (n > 1) rowY += 88;
+            if (n > 1) rowY += 64;
             column = 0;
-            drawBold(TextFormat("Chapter %d", level->chapter), 30, rowY + 4, 16, COLOUR_TEXT);
-            drawWrapped(chapterName(level->chapter), 30, rowY + 26, 190, 14, COLOUR_MUTED);
+            drawBold(TextFormat("%d. %s", level->chapter, chapterName(level->chapter)), 30, rowY + 6, 14, COLOUR_TEXT);
+        } else if (column == 9) {
+            rowY += 64;
+            column = 0;
         }
 
-        Rectangle node = { 240.0f + column * 140, rowY, 120, 52 };
-
-        // A line joining this box to the one before it in the chapter
-        if (column > 0) {
-            DrawLineEx(Vector2{ node.x - 20, node.y + 26 }, Vector2{ node.x, node.y + 26 }, 2, Color{ 70, 75, 90, 255 });
-        }
+        Rectangle node = { 230.0f + column * 112, rowY, 104, 54 };
+        if (column > 0) DrawLineEx(Vector2{ node.x - 8, node.y + 27 }, Vector2{ node.x, node.y + 27 }, 2, Color{ 70, 75, 90, 255 });
 
         Color background = Color{ 40, 43, 52, 255 };
         Color border = Color{ 70, 75, 90, 255 };
-        const char *state = "locked";
         Color textColour = Color{ 90, 95, 110, 255 };
         if (n <= app->levelsDone) {
             background = Color{ 30, 60, 40, 255 };
             border = COLOUR_GOOD;
-            state = "done";
             textColour = COLOUR_TEXT;
         } else if (n == currentLevel(app)) {
+            float pulse = 0.6f + 0.4f * sinf((float)GetTime() * 4);
             background = Color{ 70, 62, 20, 255 };
-            border = COLOUR_ACCENT;
-            state = "current";
+            border = Fade(COLOUR_ACCENT, pulse);
             textColour = COLOUR_TEXT;
         }
-
         DrawRectangleRec(node, background);
         DrawRectangleLinesEx(node, 2, border);
-        drawBold(TextFormat("%d", n), node.x + 8, node.y + 6, 15, textColour);
-        drawText(state, node.x + node.width - textWidth(state, 12) - 8, node.y + 8, 12, border);
-        drawText(level->shortName, node.x + 8, node.y + 28, 15, textColour);
+        drawBold(TextFormat("%d", n), node.x + 6, node.y + 5, 14, textColour);
+        drawText(level->shortName, node.x + 6, node.y + 23, 13, textColour);
+        if (reached(app, n)) drawStars(node.x + 62, node.y + 12, app->stars[n], 5);
 
-        // Click a box you've reached to read it in the codex
-        bool hover = CheckCollisionPointRec(GetMousePosition(), node);
-        if (hover && reached(app, n) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        // Click a box you've reached to read it
+        if (reached(app, n) && CheckCollisionPointRec(mouse, node) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             app->codexLevel = n;
             app->screen = SCREEN_CODEX;
         }
         column++;
     }
 
-    // Buttons
-    if (button(Rectangle{ SCREEN_WIDTH - 170.0f, SCREEN_HEIGHT - 56.0f, 150, 40 }, "Back")) {
-        app->screen = SCREEN_MENU;
+    // Upgrades, like the unlocks in The Farmer Was Replaced
+    float upY = SCREEN_HEIGHT - 104.0f;
+    drawBold("Upgrades:", 30, upY, 15, COLOUR_TEXT);
+    const char *names[3] = { "Aim guide (finish Ch 1)", "Ball path (finish Ch 3)", "Golden cue (finish Ch 7)" };
+    int needs[3] = { AIM_GUIDE_LEVEL, BALL_PATH_LEVEL, GOLD_CUE_LEVEL };
+    for (int i = 0; i < 3; i++) {
+        bool unlocked = app->levelsDone >= needs[i];
+        Color colour = Color{ 90, 95, 110, 255 };
+        if (unlocked) colour = COLOUR_GOOD;
+        drawText(TextFormat("%s %s", unlocked ? "[x]" : "[ ]", names[i]), 140 + i * 300.0f, upY, 15, colour);
     }
+
+    // Buttons
+    if (button(Rectangle{ SCREEN_WIDTH - 170.0f, SCREEN_HEIGHT - 56.0f, 150, 40 }, "Back")) app->screen = SCREEN_MENU;
+
     const char *resetLabel = "Reset progress";
     if (app->confirmReset) resetLabel = "Click again to reset";
     if (button(Rectangle{ 30, SCREEN_HEIGHT - 56.0f, 240, 40 }, resetLabel)) {
         if (app->confirmReset) {
             app->levelsDone = 0;
-            saveProgress(0);
+            for (int n = 0; n <= LEVEL_COUNT; n++) app->stars[n] = 0;
+            saveProgress(0, app->stars);
             app->lessonShown = false;
             app->askCount = 0;
-            app->gameInProgress = false;   // start again with a fresh game
+            app->gameInProgress = false;
             app->confirmReset = false;
         } else {
             app->confirmReset = true;
+        }
+    }
+
+    // For revising before a test: open every lesson straight away
+    const char *unlockLabel = "Unlock all (revision)";
+    if (app->confirmUnlockAll) unlockLabel = "Click again to unlock";
+    if (app->levelsDone < LEVEL_COUNT && button(Rectangle{ 290, SCREEN_HEIGHT - 56.0f, 260, 40 }, unlockLabel)) {
+        if (app->confirmUnlockAll) {
+            app->levelsDone = LEVEL_COUNT;
+            saveProgress(app->levelsDone, app->stars);
+            app->confirmUnlockAll = false;
+        } else {
+            app->confirmUnlockAll = true;
         }
     }
 }
@@ -235,28 +289,38 @@ void progressScreen(App *app) {
 int main() {
     SetConfigFlags(FLAG_MSAA_4X_HINT);   // smoother circles
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Pointer Pool - learn C and C++ pointers");
-    SetExitKey(KEY_NULL);                // Esc goes back to the menu instead of closing the window
+    SetExitKey(KEY_NULL);                // Esc goes back instead of closing the window
     SetTargetFPS(60);                    // the friction is tuned for 60 frames per second
 
     loadFonts();
+    loadSounds();
+    setupTableTextures();
     setupLevels();
     setupApp(&app);
+    setupMenuBalls();
 
     while (!WindowShouldClose() && !app.quit) {
-        // Demo key: F5 unlocks every level (handy for showing any chapter)
-        if (IsKeyPressed(KEY_F5)) {
-            app.levelsDone = LEVEL_COUNT;
-            saveProgress(LEVEL_COUNT);
-        }
+        float dt = GetFrameTime();
+        updateParticles(dt);
+        updateFloatingTexts(dt);
+        if (app.bannerTimer > 0) app.bannerTimer -= dt;
 
         BeginDrawing();
         if (app.screen == SCREEN_MENU) menuScreen(&app);
         else if (app.screen == SCREEN_PLAY) playScreen(&app);
         else if (app.screen == SCREEN_CODEX) codexScreen(&app);
         else if (app.screen == SCREEN_PROGRESS) progressScreen(&app);
+        else if (app.screen == SCREEN_PRACTICE) practiceScreen(&app);
+
+        // Effects go on top of every screen
+        drawParticles();
+        drawFloatingTexts();
+        drawBanner(&app);
         EndDrawing();
     }
 
+    unloadTableTextures();
+    unloadSounds();
     unloadFonts();
     CloseWindow();
     return 0;

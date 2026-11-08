@@ -1,6 +1,7 @@
 #include "ui.h"
 #include "lab2.h"
 #include <cstdio>
+#include <cmath>
 
 // ============================================================
 // Fonts and text
@@ -98,6 +99,33 @@ float drawWrapped(const char *text, float x, float y, float width, float size, C
         lineY += lineHeight(size);
     }
     return lineY - y;
+}
+
+// ============================================================
+// Stars
+// ============================================================
+
+// One star: 10 points (outer, inner, outer...) filled with triangles from the centre
+void drawStar(float x, float y, float size, Color colour) {
+    Vector2 points[10];
+    for (int k = 0; k < 10; k++) {
+        float angle = -1.5708f + k * 0.6283f;   // start at the top, 36 degrees apart
+        float radius = size;
+        if (k % 2 == 1) radius = size * 0.45f;
+        points[k] = Vector2{ x + cosf(angle) * radius, y + sinf(angle) * radius };
+    }
+    for (int k = 0; k < 10; k++) {
+        DrawTriangle(Vector2{ x, y }, points[(k + 1) % 10], points[k], colour);
+    }
+}
+
+// Three stars in a row; the first 'count' are gold
+void drawStars(float x, float y, int count, float size) {
+    for (int s = 0; s < 3; s++) {
+        Color colour = Color{ 70, 74, 88, 255 };
+        if (s < count) colour = COLOUR_ACCENT;
+        drawStar(x + s * size * 2.3f, y, size, colour);
+    }
 }
 
 // ============================================================

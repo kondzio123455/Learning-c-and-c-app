@@ -1,9 +1,10 @@
 # Pointer Pool
 
-A two-player 8-ball pool game that teaches C and C++ pointers, built on the
-Pointers lectures and Labs 1 and 2 (Coding Exams 1 and 2). Inspired by
-*The Farmer Was Replaced*: you learn one small idea at a time, write the code
-yourself, and the game runs it.
+A two-player 8-ball pool game for studying C and C++ pointers. Every question
+comes from the lecture notes (Pointers, Memory Management, Classes, Pointers &
+Linked Lists, Operator Overloading) and Labs 1 and 2. Inspired by *The Farmer Was
+Replaced*: you unlock one concept at a time, write the code yourself, and the game
+runs it.
 
 ## Build and run (macOS)
 
@@ -14,34 +15,46 @@ make run
 
 Run it from this folder, because the font is loaded from `assets/`.
 
+If you played an older version, open **Progress** and click **Reset progress**
+once: the levels have been renumbered.
+
 ## How to play
 
-- Before every shot you get a coding question. Type the missing code in the box,
-  then click **Run** (or press Ctrl/Cmd + Enter).
+- Two players on one computer. Before every shot you answer the current level's
+  question, then aim with the mouse, hold the left button to charge, and let go.
 - From Level 3 you also **call your ball** in the second box, for example
-  `Ball *target = &balls[3];`. From Level 14, `[ ]` is locked (the Lab 2 rule),
-  so it becomes `Ball *target = balls + 3;`.
-- Aim with the mouse, hold the left button to charge the power, and let go to shoot.
-- **Pot one of your balls to unlock the next concept**, like spending crops on
-  unlocks in The Farmer Was Replaced. Until then you practise the current one
-  (each level has two versions of its task).
-- **Esc** goes back to the menu. **Tab** switches between the two code boxes.
-  **Up/Down** scroll the shot log (from Level 27). **F5** unlocks every level,
-  which is handy for demos.
+  `Ball *target = &balls[3];`. From Level 13 `[ ]` is locked (the Lab 2 rule), so
+  it becomes `Ball *target = balls + 3;`.
+- Pot the ball you called and you shoot again. **Pot one of your own balls to
+  unlock the next concept.**
+- Finishing chapters unlocks upgrades: the aim guide (Chapter 1), the ball path
+  (Chapter 3) and the golden cue (Chapter 7).
 
-## Rules (simple 8-ball)
+## Studying for the test
 
-- Two players on one computer take turns.
-- The table is open until the first ball is potted. That ball's group
-  (solids 1-7 or stripes 9-15) goes to the player who potted it.
-- Pot the ball you called and you shoot again. Otherwise the turn passes.
-  (Before calling is unlocked: pot any of your own balls to shoot again.)
-- Potting the cue ball is a foul: the turn passes and the cue ball goes back
-  on the start line.
-- Pot the 8 after clearing your group to win. Potting it early, or potting the
-  cue ball on the same shot, loses.
-- To keep the code simple, hitting the other group's ball first isn't a foul,
-  and the 8 going down on the break is just put back on its spot.
+- **Every task is from a specific slide or lab question**, using the lecturer's
+  own code and names. Each lesson says where it comes from.
+- **Four kinds of task:** type the missing code, trace what a variable holds
+  (like the data tables on the slides), find the line that's wrong, and put lines
+  in the right order.
+- **No answers are given away.** A wrong answer explains what went wrong, not the
+  fix. Up to three hints, each more specific, appear only when you click Hint.
+- **Stars:** 3 for solving without hints, 2 with one hint, 1 with more. Your best
+  is kept.
+- **Lessons & practice** (main menu): re-read any concept you've reached and
+  practise it without playing pool. Both versions of each task, then the next level.
+- **Unlock all (revision)** on the Progress screen opens every lesson straight away.
+
+## Controls
+
+| Key | What it does |
+|---|---|
+| Ctrl/Cmd + Enter | Run your code (or click Run) |
+| Tab | Switch between the answer box and the call box |
+| Mouse | Aim; hold the left button to charge, let go to shoot |
+| Up / Down | Scroll the shot log (from Level 44) |
+| Esc | Back to the menu |
+| F5 | Unlock every level (for demos) |
 
 ## How answers are checked
 
@@ -51,54 +64,68 @@ Typed code is never compiled. Instead:
    as the same answer.
 2. The answer is compared with each accepted answer (spaces removed too) using
    Lab 2's `compare_strings`. A `#` in an accepted answer means "any whole number",
-   which is how the call line reads the ball number.
-3. If it doesn't match: common mistakes get their own hint (for example
-   `*b = *a;` in swap_ints), a missing `;` or `{` gets a "Nearly!" hint, and
-   anything else gets the task's general hint. You can try again as many times
-   as you like.
-4. From Level 14, any `[ ]` with something inside gets the Lab 2 "no indexing" hint.
+   which is how the call line reads your ball's number.
+3. If it doesn't match, a common mistake gets its own explanation; a missing `;`
+   or `{` gets a "Nearly!"; anything else gets a general nudge for that kind of task.
+4. In the Lab 2 chapters, any `[ ]` with something inside gets the "no indexing" message.
 
 When an answer is right, the game runs the real version of that code from
-`lab1.cpp` / `lab2.cpp`, so you can see it working in the game.
+`lab1.cpp` / `lab2.cpp`, so you see it working in the game.
 
-## The 29 levels
+All of this was checked before release: every accepted code answer compiles as
+real C++ in its code, and every trace answer was confirmed by running the code.
+
+## The 54 levels
 
 | Chapter | Levels |
 |---|---|
-| 1. Pointer basics (Pointers lectures) | 1 `&`, 2 `*`, 3 call your ball, 4 pass by pointer, 5 `nullptr` |
-| 2. Swaps (Lab 2 Q1-Q2) | 6 swap_ints, 7 swap_chars |
-| 3. Arrays (Lab 1 Q13-Q18) | 8 frequencyCount, 9 countDuplicates, 10 twoMovies, 11 reverse, 12 rotateLeft, 13 wordCounter |
-| 4. Pointer arithmetic (Lab 2, no `[ ]`) | 14 `*(arr + i)`, 15 sum_array, 16 find_max, 17 reverse_array |
-| 5. Strings with pointers (Lab 2) | 18 strlen_ptr, 19 count_vowels, 20 copy_string, 21 concat_strings, 22 compare_strings |
-| 6. Memory and linked lists | 23 new/delete, 24 `->`, 25 walking a list, 26 InsertAtEnd (`Node **`), 27 prevPointer, 28 InsertAtBeginning, 29 InsertAtPosition |
+| 1. Pointer basics (Pointers lecture) | 1 `&`, 2 `*`, 3 call your ball, 4 tracing a pointer, 5 pass by value and by pointer, 6 pointer to a pointer, 7 `nullptr`, 8 reference vs pointer |
+| 2. Lab 2: swaps | 9 swap_ints, 10 swap_chars |
+| 3. Pointer arithmetic (lecture and Lab 2) | 11 `ptr + 1`, 12 tracing `ptr++`, 13 steps and `sizeof`, 14 printing with a pointer, 15 sum_array, 16 find_max, 17 reverse_array |
+| 4. Lab 2: strings | 18 strlen_ptr, 19 count_vowels, 20 copy_string, 21 concat_strings, 22 compare_strings |
+| 5. Memory management | 23 scope and dangling pointers, 24 `new` and `delete`, 25 memory leaks, 26 memory mistakes, 27 `new[]`, 28 2D arrays with `int**`, 29 `malloc` and `free`, 30 function pointers, 31 global variables |
+| 6. Pointers and classes | 32 passing objects, 33 pointer to an object, 34 `new Point()`, 35 `this`, 36 copies and copy constructors, 37 arrays of object pointers, 38 destructors |
+| 7. Linked lists (lecture and Lab 2 Part 2) | 39 nodes, 40 PrintList, 41 InsertAtEnd and `Node**`, 42 DeleteWithValue, 43 `clear()`, 44 prevPointer, 45 InsertAtBeginning, 46 InsertAtPosition |
+| 8. Lab 1 review | 47 frequencyCount, 48 countDuplicates, 49 reverse, 50 rotateLeft, 51 twoMovies, 52 wordCounter, 53 PrintArray, 54 grid clusters (Q20-Q21) |
+
+## Notes on the course material
+
+- **Lab 2 Q6:** the sheet says `count_vowels("OpenAI")` is 3 ('O', 'e', 'A'), but
+  the final 'I' is a vowel too, so the answer is 4. Level 19 points this out.
+- **Linked list lecture:** the first `Node` calls its pointer `next`, while the full
+  program calls it `nextPtr`. The game follows the full program and mentions both.
+- **Lab answers:** the labs give prototypes and descriptions, not solutions. The
+  answers here are standard correct solutions (compiled and tested), not an
+  official answer sheet. Lab 1 Q20-Q21 only describe what to do, so Level 54 shows
+  one correct way. Lab 1 Q21 (FindAllVariables) and Q22 (scope) aren't covered.
+- **malloc:** the slides cast with `(int*)`. That's optional in C but needed in C++,
+  so Level 29 accepts both.
 
 ## Files
 
 | File | What it does |
 |---|---|
-| `src/main.cpp` | The window, the main menu, the codex and the progress tree |
-| `src/play.cpp` | The game screen: lesson, code, run, aim, roll, then the next shot |
-| `src/pool.cpp` | Table, balls, physics and the 8-ball rules |
-| `src/levels.cpp` | All 29 lessons: explanation, example, two tasks, answers and hints |
+| `src/main.cpp` | The window, main menu, lessons screen and progress tree |
+| `src/play.cpp` | The game screen and practice: questions, hints, stars, shooting, banners |
+| `src/pool.cpp` | Table, balls, physics, 8-ball rules and the aim guide |
+| `src/effects.cpp` | Particles, floating text, screen shake, and sounds made in code |
 | `src/questions.cpp` | The answer checker, and saving progress to `progress.txt` |
+| `src/lessons_pointers.cpp` | Chapters 1-4: the Pointers lecture and Lab 2 Part 1 |
+| `src/lessons_memory.cpp` | Chapters 5-6: Memory Management and Classes |
+| `src/lessons_lists.cpp` | Chapters 7-8: linked lists and the Lab 1 review |
 | `src/editor.cpp` | The code box: typing, cursor and syntax colouring |
-| `src/ui.cpp` | Fonts, buttons and pieces of the game screen |
-| `src/lab1.cpp` | Lab 1 Q13-Q18, as used by the game |
-| `src/lab2.cpp` | All of Lab 2, including the doubly linked list used for the shot log |
+| `src/ui.cpp` | Fonts, buttons, stars and pieces of the game screen |
+| `src/lab1.cpp` / `src/lab2.cpp` | The lab functions the game really uses |
 | `src/app.h` | The `App` struct that holds the whole app's state |
 
 ## Changing things
 
-- **Edit or add a lesson:** `src/levels.cpp`.
+- **Edit or add a lesson:** the `lessons_*.cpp` files. Each level is one block.
 - **Unlock a concept after every correct answer instead of after potting:** set
   `UNLOCK_BY_POTTING` to `false` in `src/app.h`.
 - **Start again:** Progress, then Reset progress (or delete `progress.txt`).
 
-## A note on the Lab 2 sheet
-
-The sheet says `count_vowels("OpenAI")` is 3 ('O', 'e', 'A'), but the final 'I'
-is a vowel too, so the answer is 4. The game's lesson points this out.
-
 ## Credits
 
 Font: JetBrains Mono, under the SIL Open Font License (see `assets/OFL.txt`).
+Sounds are generated in code, so there are no sound files.

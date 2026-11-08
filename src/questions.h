@@ -1,25 +1,41 @@
 #ifndef QUESTIONS_H
 #define QUESTIONS_H
 
-const int LEVEL_COUNT = 29;
-const int CHAPTER_COUNT = 6;
-const int CALL_LEVEL = 3;     // "Call your ball": after this you call a ball before every shot
-const int LOCK_LEVEL = 14;    // pointer arithmetic: [ ] is locked from here on (Lab 2 rule)
+// ---------- The levels ----------
+const int LEVEL_COUNT = 54;
+const int CHAPTER_COUNT = 8;
 
-// A common wrong answer, with a hint that explains what went wrong
+const int CALL_LEVEL = 3;        // "Call your ball": after this you call a ball before every shot
+const int STEP_LEVEL = 13;       // pointer steps: from here the call line uses balls + N
+
+// Upgrades you unlock by finishing chapters (like The Farmer Was Replaced)
+const int AIM_GUIDE_LEVEL = 8;   // finish Chapter 1: aim guide (ghost ball)
+const int BALL_PATH_LEVEL = 17;  // finish Chapter 3: see where the object ball will go
+const int GOLD_CUE_LEVEL = 46;   // finish Chapter 7: golden cue
+
+// The four kinds of task
+enum TaskKind {
+    TASK_TYPE,     // type the missing code
+    TASK_TRACE,    // work out what a variable holds (like the data tables in the lecture)
+    TASK_BUG,      // find the line that's wrong (type its number)
+    TASK_ORDER     // click the lines in the right order
+};
+
+// A common wrong answer, with an explanation of what went wrong (not the fix)
 struct Mistake {
     const char *answer;
-    const char *hint;
+    const char *why;
 };
 
 // One version of a level's task
 struct Task {
-    const char *task;          // what to type, in plain English
-    const char *code;          // the code around the gap; ____ marks where your code goes
-    const char *answers[6];    // accepted answers (spaces don't matter, # means any number)
-    Mistake mistakes[4];       // common wrong answers, each with its own hint
-    const char *hint;          // shown when nothing else matches
-    int power;                 // Level 2 only: the shot power this code sets
+    TaskKind kind;
+    const char *task;          // what to do, in plain English
+    const char *code;          // the code; ____ marks the gap (TYPE and ORDER)
+    const char *answers[8];    // accepted answers (spaces don't matter, # means any number)
+    Mistake mistakes[4];
+    const char *hints[3];      // shown one at a time, only when the player asks
+    const char *tiles[6];      // ORDER only: the lines to choose from (some are wrong)
 };
 
 struct Level {
@@ -30,23 +46,41 @@ struct Level {
     const char *explanation;
     const char *example;
     const char *inGame;        // how the game uses it
+    bool noIndexing;           // Lab 2 rule: [ ] is not allowed in answers
     Task tasks[2];             // two versions, so repeats aren't identical
 };
 
 // The result of checking an answer
 struct CheckResult {
     bool correct;
-    const char *hint;          // what to show when it's wrong
+    const char *feedback;      // why it's wrong (never the answer itself)
     int number;                // the number typed where an answer has a #
 };
 
-void setupLevels();                      // in levels.cpp: all the lesson text
+// ---------- Writing lessons (used by the lesson files) ----------
+Level *startLevel(int number, int chapter, const char *title, const char *shortName, const char *source);
+Task *startTask(Level *level, int version, TaskKind kind, const char *task, const char *code);
+void addAnswer(Task *task, const char *answer);
+void addMistake(Task *task, const char *answer, const char *why);
+void setHints(Task *task, const char *hint1, const char *hint2, const char *hint3);
+void addTile(Task *task, const char *line);
+
+void setupLevels();
+void setupPointerLessons();      // lessons_pointers.cpp: Chapters 1 to 4
+void setupMemoryLessons();       // lessons_memory.cpp:   Chapters 5 and 6
+void setupListLessons();         // lessons_lists.cpp:    Chapters 7 and 8
+
 Level *getLevel(int number);
-Task *getCallTask(bool afterLock);       // the call line's answers
+Task *getCallTask(bool afterStep);
 const char *chapterName(int chapter);
+int lastLevelOfChapter(int chapter);
+
+// ---------- Checking ----------
 CheckResult checkAnswer(Task *task, const char *typed, bool lockOn);
-CheckResult checkCallLine(const char *typed, bool lockOn);
-int loadProgress();
-void saveProgress(int levelsDone);
+CheckResult checkCallLine(const char *typed, bool afterStep);
+
+// ---------- Saving progress (progress.txt) ----------
+void loadProgress(int *levelsDone, int stars[]);
+void saveProgress(int levelsDone, int stars[]);
 
 #endif

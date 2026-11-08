@@ -26,11 +26,16 @@ float charWidth(float size);
 float lineHeight(float size);
 float drawWrapped(const char *text, float x, float y, float width, float size, Color colour);
 
+// ---------- Stars (3 = solved without hints) ----------
+void drawStar(float x, float y, float size, Color colour);
+void drawStars(float x, float y, int count, float size);
+
 // ---------- Buttons ----------
 bool button(Rectangle area, const char *label);   // draws it, returns true when clicked
 
 // ---------- Pieces of the game screen ----------
 void drawPlayerBox(Player *player, Rectangle area, bool isTurn, bool tableOpen, int left, bool showLeft);
+float memoryBoxX(int n);
 void drawMemoryRow(Game *game, float y);
 void drawTargetPointer(Game *game, float x, float y, float memoryRowY);
 void drawTray(Player *player, float x, float y, bool newestFirst);

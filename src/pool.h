@@ -72,6 +72,13 @@ struct Game {
     char reason[100];         // why the game ended
     char status[100];         // what happened on the last shot
     DoublyLinkedList shotLog; // one node per shot (Lab 2 Part 2)
+
+    // Animation only (kept out of Ball so a Ball stays 24 bytes)
+    float rollAngle[BALL_COUNT];          // how far each ball has rolled, so its number turns
+    float rollDirX[BALL_COUNT], rollDirY[BALL_COUNT];
+    float sinkTimer[BALL_COUNT];          // > 0 while a ball is dropping into a pocket
+    float sinkFromX[BALL_COUNT], sinkFromY[BALL_COUNT];
+    float sinkToX[BALL_COUNT], sinkToY[BALL_COUNT];
 };
 
 // ---------- Setting up and rules ----------
@@ -91,10 +98,14 @@ bool ballsMoving(Game *game);
 bool endOfShot(Game *game);                          // applies the 8-ball rules
 
 // ---------- Drawing ----------
+void setupTableTextures();           // call once after the window opens
+void unloadTableTextures();
 void drawTable();
 void drawBall(int number, float x, float y, float radius);
+void drawBallRolling(int number, float x, float y, float r, float rollAngle, float dirX, float dirY, float alpha);
 void drawBalls(Game *game);
 void drawTargetRing(Game *game);
-void drawCueStick(Game *game, float power);
+void drawCueStick(Game *game, float aimX, float aimY, float power, float strike, bool golden);
+void drawAimGuide(Game *game, float aimX, float aimY, bool showPath);
 
 #endif

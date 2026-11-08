@@ -2,6 +2,7 @@
 #include "lab1.h"
 #include "lab2.h"
 #include "ui.h"
+#include "effects.h"
 #include <cmath>
 #include <cstdio>
 
@@ -164,6 +165,10 @@ void newGame(Game *game) {
         game->balls[n].vx = 0;
         game->balls[n].vy = 0;
         game->balls[n].pocketed = false;
+        game->rollAngle[n] = 0;
+        game->rollDirX[n] = 1;
+        game->rollDirY[n] = 0;
+        game->sinkTimer[n] = 0;
     }
     game->balls[0].x = CUE_START_X;
     game->balls[0].y = CUE_START_Y;
@@ -286,11 +291,15 @@ void bounceOffCushions(Ball *ball) {
     float right = FELT_LEFT + FELT_WIDTH - BALL_RADIUS;
     float top = FELT_TOP + BALL_RADIUS;
     float bottom = FELT_TOP + FELT_HEIGHT - BALL_RADIUS;
+    float speedBefore = sqrtf(ball->vx * ball->vx + ball->vy * ball->vy);
+    bool bounced = false;
 
-    if (ball->x < left)   { ball->x = left;   ball->vx = -ball->vx * CUSHION_BOUNCE; }
-    if (ball->x > right)  { ball->x = right;  ball->vx = -ball->vx * CUSHION_BOUNCE; }
-    if (ball->y < top)    { ball->y = top;    ball->vy = -ball->vy * CUSHION_BOUNCE; }
-    if (ball->y > bottom) { ball->y = bottom; ball->vy = -ball->vy * CUSHION_BOUNCE; }
+    if (ball->x < left)   { ball->x = left;   ball->vx = -ball->vx * CUSHION_BOUNCE; bounced = true; }
+    if (ball->x > right)  { ball->x = right;  ball->vx = -ball->vx * CUSHION_BOUNCE; bounced = true; }
+    if (ball->y < top)    { ball->y = top;    ball->vy = -ball->vy * CUSHION_BOUNCE; bounced = true; }
+    if (ball->y > bottom) { ball->y = bottom; ball->vy = -ball->vy * CUSHION_BOUNCE; bounced = true; }
+
+    if (bounced && speedBefore > 120) playSound(SOUND_CUSHION, speedBefore / 1200);
 }
 
 void checkPockets(Game *game, Ball *ball) {
@@ -302,6 +311,16 @@ void checkPockets(Game *game, Ball *ball) {
             ball->pocketed = true;
             ball->vx = 0;
             ball->vy = 0;
+
+            // Animation: the ball slides into the pocket and shrinks
+            int n = ball->number;
+            game->sinkTimer[n] = 0.35f;
+            game->sinkFromX[n] = ball->x;
+            game->sinkFromY[n] = ball->y;
+            game->sinkToX[n] = pocketX[p];
+            game->sinkToY[n] = pocketY[p];
+            playSound(SOUND_POCKET, 0.9f);
+            spawnSparks(pocketX[p], pocketY[p], Color{ 200, 200, 200, 255 }, 10, 90);
 
             // Remember which object balls went down this shot
             if (ball->number != 0) {
@@ -345,6 +364,12 @@ void handleCollisions(Game *game) {
                     a->vy -= closingSpeed * ny;
                     b->vx += closingSpeed * nx;
                     b->vy += closingSpeed * ny;
+
+                    if (closingSpeed > 40) playSound(SOUND_CLICK, closingSpeed / 900);
+                    if (closingSpeed > 700) {
+                        spawnSparks(a->x + nx * BALL_RADIUS, a->y + ny * BALL_RADIUS, WHITE, 6, 160);
+                        shakeScreen(closingSpeed / 400);
+                    }
                 }
             }
         }
@@ -377,6 +402,18 @@ void updateBalls(Game *game, float dt) {
             ball->vx = 0;
             ball->vy = 0;
         }
+
+        // Animation: the further a ball rolls, the more its number turns.
+        // Once it stops, the number settles back to face up so you can read it.
+        if (speed > 0) {
+            game->rollAngle[n] += speed * dt / BALL_RADIUS;
+            game->rollDirX[n] = ball->vx / speed;
+            game->rollDirY[n] = ball->vy / speed;
+        } else {
+            float faceUp = roundf(game->rollAngle[n] / PI) * PI;
+            game->rollAngle[n] += (faceUp - game->rollAngle[n]) * fminf(1, dt * 5);
+        }
+        if (game->sinkTimer[n] > 0) game->sinkTimer[n] -= dt;
     }
 }
 
@@ -527,26 +564,61 @@ bool endOfShot(Game *game) {
 // Drawing
 // ============================================================
 
-void drawTable() {
-    Color wood = { 110, 62, 30, 255 };
-    Color woodDark = { 70, 38, 18, 255 };
-    Color cushion = { 18, 95, 55, 255 };
-    Color felt = { 28, 125, 72, 255 };
-    Color feltLight = { 38, 140, 82, 255 };
+Texture2D feltTexture;   // a soft cloth pattern, made once when the game starts
+Texture2D lampTexture;   // a round glow, stretched over the felt as light from a lamp
 
-    // Wooden rail with a darker edge
+void setupTableTextures() {
+    Image noise = GenImagePerlinNoise(FELT_WIDTH, FELT_HEIGHT, 0, 0, 4.0f);
+    feltTexture = LoadTextureFromImage(noise);
+    UnloadImage(noise);
+
+    Image glow = GenImageGradientRadial(256, 256, 0.0f, Color{ 255, 255, 230, 46 }, Color{ 255, 255, 230, 0 });
+    lampTexture = LoadTextureFromImage(glow);
+    UnloadImage(glow);
+}
+
+void unloadTableTextures() {
+    UnloadTexture(feltTexture);
+    UnloadTexture(lampTexture);
+}
+
+void drawTable() {
+    Color wood = { 112, 64, 32, 255 };
+    Color woodDark = { 66, 36, 16, 255 };
+    Color woodLight = { 150, 92, 50, 255 };
+    Color cushion = { 16, 92, 52, 255 };
+    Color felt = { 26, 122, 70, 255 };
+
+    // Soft shadow under the whole table
+    DrawRectangleRounded(Rectangle{ (float)(FELT_LEFT - RAIL + 6), (float)(FELT_TOP - RAIL + 10),
+                                    (float)(FELT_WIDTH + RAIL * 2), (float)(FELT_HEIGHT + RAIL * 2) },
+                         0.08f, 8, Fade(BLACK, 0.45f));
+
+    // Wooden rail: dark edge, wood, a highlight along the top, and a few grain lines
     Rectangle outer = { (float)(FELT_LEFT - RAIL), (float)(FELT_TOP - RAIL),
                         (float)(FELT_WIDTH + RAIL * 2), (float)(FELT_HEIGHT + RAIL * 2) };
     DrawRectangleRounded(outer, 0.08f, 8, woodDark);
     Rectangle inner = { outer.x + 3, outer.y + 3, outer.width - 6, outer.height - 6 };
     DrawRectangleRounded(inner, 0.08f, 8, wood);
+    DrawRectangle((int)inner.x + 12, (int)inner.y + 2, (int)inner.width - 24, 3, Fade(woodLight, 0.7f));
+    for (int i = 0; i < 4; i++) {
+        float y = outer.y + 8 + i * 5.0f;
+        DrawLineEx(Vector2{ outer.x + 20, y }, Vector2{ outer.x + outer.width - 20, y + 1 }, 1, Fade(woodDark, 0.35f));
+        float y2 = outer.y + outer.height - 9 - i * 5.0f;
+        DrawLineEx(Vector2{ outer.x + 20, y2 }, Vector2{ outer.x + outer.width - 20, y2 - 1 }, 1, Fade(woodDark, 0.35f));
+    }
 
-    // Cushions: a dark green band just inside the wood
+    // Cushions: a darker green band just inside the wood
     DrawRectangle(FELT_LEFT - 8, FELT_TOP - 8, FELT_WIDTH + 16, FELT_HEIGHT + 16, cushion);
 
-    // Felt, slightly lighter in the middle
-    DrawRectangleGradientV(FELT_LEFT, FELT_TOP, FELT_WIDTH, FELT_HEIGHT / 2, felt, feltLight);
-    DrawRectangleGradientV(FELT_LEFT, FELT_TOP + FELT_HEIGHT / 2, FELT_WIDTH, FELT_HEIGHT / 2, feltLight, felt);
+    // Felt, with a faint cloth pattern on top
+    DrawRectangle(FELT_LEFT, FELT_TOP, FELT_WIDTH, FELT_HEIGHT, felt);
+    DrawTexture(feltTexture, FELT_LEFT, FELT_TOP, Fade(WHITE, 0.035f));
+
+    // Light from a lamp above the middle of the table
+    Rectangle source = { 0, 0, (float)lampTexture.width, (float)lampTexture.height };
+    Rectangle dest = { FELT_LEFT - 40.0f, FELT_TOP - 20.0f, FELT_WIDTH + 80.0f, FELT_HEIGHT + 40.0f };
+    DrawTexturePro(lampTexture, source, dest, Vector2{ 0, 0 }, 0, WHITE);
 
     // Faint start line for the cue ball
     DrawLine((int)CUE_START_X, FELT_TOP, (int)CUE_START_X, FELT_TOP + FELT_HEIGHT, Fade(WHITE, 0.15f));
@@ -555,68 +627,94 @@ void drawTable() {
     for (int i = 1; i < 8; i++) {
         if (i == 4) continue;   // the middle pocket is there
         float x = FELT_LEFT + FELT_WIDTH * i / 8.0f;
-        DrawCircleV(Vector2{ x, (float)(FELT_TOP - RAIL / 2 - 4) }, 2.5f, Fade(WHITE, 0.7f));
-        DrawCircleV(Vector2{ x, (float)(FELT_TOP + FELT_HEIGHT + RAIL / 2 + 4) }, 2.5f, Fade(WHITE, 0.7f));
+        DrawCircleV(Vector2{ x, (float)(FELT_TOP - RAIL / 2 - 4) }, 2.5f, Fade(WHITE, 0.75f));
+        DrawCircleV(Vector2{ x, (float)(FELT_TOP + FELT_HEIGHT + RAIL / 2 + 4) }, 2.5f, Fade(WHITE, 0.75f));
     }
     for (int i = 1; i < 4; i++) {
         float y = FELT_TOP + FELT_HEIGHT * i / 4.0f;
-        DrawCircleV(Vector2{ (float)(FELT_LEFT - RAIL / 2 - 4), y }, 2.5f, Fade(WHITE, 0.7f));
-        DrawCircleV(Vector2{ (float)(FELT_LEFT + FELT_WIDTH + RAIL / 2 + 4), y }, 2.5f, Fade(WHITE, 0.7f));
+        DrawCircleV(Vector2{ (float)(FELT_LEFT - RAIL / 2 - 4), y }, 2.5f, Fade(WHITE, 0.75f));
+        DrawCircleV(Vector2{ (float)(FELT_LEFT + FELT_WIDTH + RAIL / 2 + 4), y }, 2.5f, Fade(WHITE, 0.75f));
     }
 
     // Pockets: a few circles from grey to black give a simple shading
     for (int p = 0; p < 6; p++) {
         Vector2 centre = { pocketX[p], pocketY[p] };
-        DrawCircleV(centre, POCKET_RADIUS + 3, Color{ 45, 30, 20, 255 });
-        DrawCircleV(centre, POCKET_RADIUS, Color{ 40, 40, 40, 255 });
-        DrawCircleV(centre, POCKET_RADIUS * 0.8f, Color{ 22, 22, 22, 255 });
-        DrawCircleV(centre, POCKET_RADIUS * 0.55f, BLACK);
+        DrawCircleV(centre, POCKET_RADIUS + 4, Color{ 40, 26, 16, 255 });
+        DrawCircleV(centre, POCKET_RADIUS, Color{ 45, 45, 45, 255 });
+        DrawCircleV(centre, POCKET_RADIUS * 0.82f, Color{ 24, 24, 24, 255 });
+        DrawCircleV(centre, POCKET_RADIUS * 0.6f, BLACK);
     }
 }
 
-// Draws one ball with a shadow, stripe, number and a small shine
-void drawBall(int number, float x, float y, float radius) {
+// Draws one ball. rollAngle and the direction make the number turn as the ball rolls,
+// and alpha fades it out as it drops into a pocket.
+void drawBallRolling(int number, float x, float y, float r, float rollAngle, float dirX, float dirY, float alpha) {
     Vector2 centre = { x, y };
-    float r = radius;
 
-    // Shadow, a little down and to the right
-    DrawCircleV(Vector2{ x + r * 0.15f, y + r * 0.25f }, r, Fade(BLACK, 0.35f));
+    // Shadow, pointing away from the lamp in the middle of the table
+    float lampX = FELT_LEFT + FELT_WIDTH / 2.0f;
+    float lampY = FELT_TOP + FELT_HEIGHT / 2.0f;
+    float sx = (x - lampX) * 0.012f + 1.5f;
+    float sy = (y - lampY) * 0.012f + 2.5f;
+    DrawCircleV(Vector2{ x + sx, y + sy }, r, Fade(BLACK, 0.35f * alpha));
 
     if (number == 0) {
-        DrawCircleV(centre, r, ballColours[0]);
+        DrawCircleV(centre, r, Fade(ballColours[0], alpha));
     } else if (number == 8) {
-        DrawCircleV(centre, r, Color{ 20, 20, 20, 255 });
-        DrawRing(centre, r - 1.5f, r, 0, 360, 32, Fade(WHITE, 0.3f));   // faint rim so it shows on dark backgrounds
+        DrawCircleV(centre, r, Fade(Color{ 20, 20, 20, 255 }, alpha));
+        DrawRing(centre, r - 1.5f, r, 0, 360, 32, Fade(WHITE, 0.3f * alpha));   // faint rim
     } else if (number < 8) {
-        DrawCircleV(centre, r, ballColours[number]);
+        DrawCircleV(centre, r, Fade(ballColours[number], alpha));
     } else {
         // Stripe: a white ball with a coloured band across the middle.
         // Each row of the band is as wide as the circle is at that height.
-        DrawCircleV(centre, r, ballColours[0]);
+        DrawCircleV(centre, r, Fade(ballColours[0], alpha));
         int band = (int)(r * 0.55f);
         for (int dy = -band; dy <= band; dy++) {
             float halfWidth = sqrtf(r * r - dy * dy);
-            DrawRectangle((int)(x - halfWidth), (int)y + dy, (int)(halfWidth * 2), 1, ballColours[number - 8]);
+            DrawRectangle((int)(x - halfWidth), (int)y + dy, (int)(halfWidth * 2), 1, Fade(ballColours[number - 8], alpha));
         }
     }
 
-    // Number on a small white circle (the cue ball has no number)
+    // The number on its white spot. As the ball rolls, the spot slides across it and
+    // shrinks near the edge (facing is 1 when the number faces straight up).
     if (number != 0) {
-        DrawCircleV(centre, r * 0.52f, ballColours[0]);
-        const char *text = TextFormat("%d", number);
-        float size = r * 0.85f;
-        float width = textWidth(text, size);
-        drawBold(text, x - width / 2, y - size / 2, size, BLACK);
+        float facing = fabsf(cosf(rollAngle));
+        float slide = sinf(rollAngle) * r * 0.5f;
+        float spotX = x + dirX * slide;
+        float spotY = y + dirY * slide;
+        float spotR = r * 0.52f * (0.5f + 0.5f * facing);
+        DrawCircleV(Vector2{ spotX, spotY }, spotR, Fade(ballColours[0], alpha));
+        if (facing > 0.35f) {
+            const char *text = TextFormat("%d", number);
+            float size = r * 0.85f * (0.6f + 0.4f * facing);
+            float width = textWidth(text, size);
+            drawBold(text, spotX - width / 2, spotY - size / 2, size, Fade(BLACK, alpha));
+        }
     }
 
-    // Shine in the top-left
-    DrawCircleV(Vector2{ x - r * 0.35f, y - r * 0.4f }, r * 0.22f, Fade(WHITE, 0.55f));
+    // Shine from the lamp
+    DrawCircleV(Vector2{ x - r * 0.35f, y - r * 0.4f }, r * 0.24f, Fade(WHITE, 0.55f * alpha));
+    DrawCircleV(Vector2{ x - r * 0.3f, y - r * 0.35f }, r * 0.1f, Fade(WHITE, 0.8f * alpha));
+}
+
+// A ball that isn't rolling (used under the table, in the menu, and so on)
+void drawBall(int number, float x, float y, float radius) {
+    drawBallRolling(number, x, y, radius, 0, 1, 0, 1);
 }
 
 void drawBalls(Game *game) {
     for (int n = 0; n < BALL_COUNT; n++) {
         Ball *ball = &game->balls[n];
-        if (!ball->pocketed) drawBall(ball->number, ball->x, ball->y, BALL_RADIUS);
+        if (!ball->pocketed) {
+            drawBallRolling(n, ball->x, ball->y, BALL_RADIUS, game->rollAngle[n], game->rollDirX[n], game->rollDirY[n], 1);
+        } else if (game->sinkTimer[n] > 0) {
+            // Dropping into a pocket: slide towards its centre, shrink and fade
+            float t = 1 - game->sinkTimer[n] / 0.35f;
+            float x = game->sinkFromX[n] + (game->sinkToX[n] - game->sinkFromX[n]) * t;
+            float y = game->sinkFromY[n] + (game->sinkToY[n] - game->sinkFromY[n]) * t;
+            drawBallRolling(n, x, y, BALL_RADIUS * (1 - 0.5f * t), game->rollAngle[n], 1, 0, 1 - t);
+        }
     }
 }
 
@@ -631,28 +729,98 @@ void drawTargetRing(Game *game) {
     DrawRing(centre, BALL_RADIUS + 3 + pulse, BALL_RADIUS + 5 + pulse, 0, 360, 32, YELLOW);
 }
 
-// Aim dots from the cue ball towards the mouse, and the cue stick behind the ball
-void drawCueStick(Game *game, float power) {
+// The cue stick behind the cue ball. strike goes from 0 to 1 as the stick hits the ball.
+void drawCueStick(Game *game, float aimX, float aimY, float power, float strike, bool golden) {
     Ball *cue = &game->balls[0];
-    Vector2 mouse = GetMousePosition();
-    float dx = mouse.x - cue->x;
-    float dy = mouse.y - cue->y;
+    float dx = aimX - cue->x;
+    float dy = aimY - cue->y;
     float length = sqrtf(dx * dx + dy * dy);
     if (length == 0) return;
     dx = dx / length;   // direction with a length of 1
     dy = dy / length;
 
-    // Dotted aim line
-    for (int i = 1; i <= 22; i++) {
-        float d = BALL_RADIUS + i * 12;
-        DrawCircleV(Vector2{ cue->x + dx * d, cue->y + dy * d }, 1.6f, Fade(WHITE, 0.7f));
+    // The stick is pulled back further the more power there is, and moves in when striking
+    float pullBack = (BALL_RADIUS + 6 + power * 0.6f) * (1 - strike) + BALL_RADIUS * strike;
+    Vector2 tip = { cue->x - dx * pullBack, cue->y - dy * pullBack };
+    Vector2 end = { tip.x - dx * 320, tip.y - dy * 320 };
+    Vector2 tipEnd = { tip.x - dx * 8, tip.y - dy * 8 };
+    Vector2 wrapStart = { tip.x - dx * 230, tip.y - dy * 230 };
+
+    DrawLineEx(Vector2{ end.x + 3, end.y + 4 }, Vector2{ tip.x + 3, tip.y + 4 }, 7, Fade(BLACK, 0.3f));   // shadow
+    Color shaft = { 214, 170, 108, 255 };
+    Color handle = { 70, 40, 25, 255 };
+    if (golden) {
+        shaft = Color{ 240, 200, 70, 255 };
+        handle = Color{ 150, 100, 20, 255 };
+    }
+    DrawLineEx(end, tip, 7, shaft);
+    DrawLineEx(end, wrapStart, 8, handle);
+    DrawLineEx(tipEnd, tip, 7, Color{ 90, 140, 200, 255 });   // chalked tip
+}
+
+// The aim guide (an upgrade): dots to where the cue ball first hits something, a
+// "ghost ball" where it will touch the object ball, and (later) where that ball goes.
+void drawAimGuide(Game *game, float aimX, float aimY, bool showPath) {
+    Ball *cue = &game->balls[0];
+    float dx = aimX - cue->x;
+    float dy = aimY - cue->y;
+    float length = sqrtf(dx * dx + dy * dy);
+    if (length == 0) return;
+    dx = dx / length;
+    dy = dy / length;
+
+    // How far until the cue ball touches another ball? For each ball, find the
+    // distance along the aim line where the two centres are 2 radiuses apart.
+    float hitDistance = 100000;
+    int hitBall = -1;
+    for (int n = 1; n < BALL_COUNT; n++) {
+        Ball *ball = &game->balls[n];
+        if (ball->pocketed) continue;
+        float wx = ball->x - cue->x;
+        float wy = ball->y - cue->y;
+        float along = wx * dx + wy * dy;                          // distance along the aim line
+        if (along <= 0) continue;                                 // it's behind the cue ball
+        float sideSquared = wx * wx + wy * wy - along * along;    // distance from the line, squared
+        float touch = (BALL_RADIUS * 2) * (BALL_RADIUS * 2);
+        if (sideSquared < touch) {
+            float d = along - sqrtf(touch - sideSquared);
+            if (d < hitDistance) {
+                hitDistance = d;
+                hitBall = n;
+            }
+        }
     }
 
-    // The stick is pulled back further the more power there is
-    float pullBack = BALL_RADIUS + 6 + power * 0.6f;
-    Vector2 tip = { cue->x - dx * pullBack, cue->y - dy * pullBack };
-    Vector2 end = { tip.x - dx * 300, tip.y - dy * 300 };
-    Vector2 tipEnd = { tip.x - dx * 8, tip.y - dy * 8 };
-    DrawLineEx(end, tip, 7, Color{ 205, 160, 100, 255 });
-    DrawLineEx(tipEnd, tip, 7, Color{ 90, 140, 200, 255 });   // chalked tip
+    // If no ball is hit, the line stops at the cushion
+    if (hitBall == -1) {
+        float left = FELT_LEFT + BALL_RADIUS, right = FELT_LEFT + FELT_WIDTH - BALL_RADIUS;
+        float top = FELT_TOP + BALL_RADIUS, bottom = FELT_TOP + FELT_HEIGHT - BALL_RADIUS;
+        if (dx > 0) hitDistance = fminf(hitDistance, (right - cue->x) / dx);
+        if (dx < 0) hitDistance = fminf(hitDistance, (left - cue->x) / dx);
+        if (dy > 0) hitDistance = fminf(hitDistance, (bottom - cue->y) / dy);
+        if (dy < 0) hitDistance = fminf(hitDistance, (top - cue->y) / dy);
+    }
+
+    // Dotted line up to the contact point
+    for (float d = BALL_RADIUS + 6; d < hitDistance; d += 10) {
+        DrawCircleV(Vector2{ cue->x + dx * d, cue->y + dy * d }, 1.6f, Fade(WHITE, 0.75f));
+    }
+
+    // Ghost ball where the cue ball will be at the moment of contact
+    float gx = cue->x + dx * hitDistance;
+    float gy = cue->y + dy * hitDistance;
+    DrawCircleLines((int)gx, (int)gy, BALL_RADIUS, Fade(WHITE, 0.8f));
+
+    // Upgrade: where the object ball will go (along the line between the centres)
+    if (showPath && hitBall != -1) {
+        Ball *ball = &game->balls[hitBall];
+        float px = ball->x - gx;
+        float py = ball->y - gy;
+        float pl = sqrtf(px * px + py * py);
+        if (pl > 0) {
+            Vector2 from = { ball->x, ball->y };
+            Vector2 to = { ball->x + px / pl * 110, ball->y + py / pl * 110 };
+            DrawLineEx(from, to, 2, Fade(YELLOW, 0.7f));
+        }
+    }
 }
