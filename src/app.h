@@ -4,6 +4,7 @@
 #include "pool.h"
 #include "editor.h"
 #include "questions.h"
+#include "practice.h"
 
 // Set this to false to unlock the next concept after every correct answer,
 // instead of after potting one of your balls (like spending crops in The Farmer Was Replaced).
@@ -49,6 +50,9 @@ struct App {
     int hintsShown;             // how many hints the player has asked for (0 to 3)
     int chosen[6];              // ORDER tasks: the tiles clicked so far, in order
     int chosenCount;
+    MadeUpQuestion madeUp;      // a new question in the lecturer's style (practice.cpp)
+    bool usingMadeUp;           // true when the current question is the made-up one
+    bool showSlide;             // the Slide window is open
 
     CodeBox answerBox;          // where the player types the answer
     CodeBox callBox;            // the call line: Ball *target = ...
@@ -77,6 +81,7 @@ struct App {
 };
 
 // Progress helpers (play.cpp)
+Task *currentTask(App *app);   // the question being asked right now
 int currentLevel(App *app);
 bool reached(App *app, int level);
 
@@ -88,5 +93,6 @@ void startPractice(App *app, int level);
 void practiceScreen(App *app);
 float drawLessonContent(Level *level, float x, float y, float width);
 void drawBanner(App *app);
+void drawSlideOverlay(App *app);   // the Slide window: what the slides say
 
 #endif

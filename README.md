@@ -22,13 +22,14 @@ once: the levels have been renumbered.
 
 - Two players on one computer. Before every shot you answer the current level's
   question, then aim with the mouse, hold the left button to charge, and let go.
-- From Level 3 you also **call your ball** in the second box, for example
-  `Ball *target = &balls[3];`. From Level 13 `[ ]` is locked (the Lab 2 rule), so
-  it becomes `Ball *target = balls + 3;`.
-- Pot the ball you called and you shoot again. **Pot one of your own balls to
-  unlock the next concept.**
-- Finishing chapters unlocks upgrades: the aim guide (Chapter 1), the ball path
-  (Chapter 3) and the golden cue (Chapter 7).
+- From Level 3 you **call your ball** after every 2 of your own balls (and when
+  you go for the 8), in a second box: `Ball *target = &balls[3];`. From Level 13
+  `[ ]` is locked (the Lab 2 rule), so it becomes `Ball *target = balls + 3;`.
+- Pot the ball you called (or, on shots with no call, any of yours) and you shoot
+  again. **Pot one of your own balls to unlock the next concept.**
+- A dotted line shows where the cue ball will go. Finishing chapters unlocks
+  upgrades: the ghost ball (Chapter 1), the ball path (Chapter 3) and the golden
+  cue (Chapter 7).
 
 ## Studying for the test
 
@@ -38,11 +39,21 @@ once: the levels have been renumbered.
   (like the data tables on the slides), find the line that's wrong, and put lines
   in the right order.
 - **No answers are given away.** A wrong answer explains what went wrong, not the
-  fix. Up to three hints, each more specific, appear only when you click Hint.
+  fix. Hints appear only when you click Hint: three, each more specific, then a
+  last one that shows the layout of the answer with blanks (or a part-done trace).
 - **Stars:** 3 for solving without hints, 2 with one hint, 1 with more. Your best
   is kept.
+- **The Slide button** shows what the slides (or lab sheet) actually say for that
+  level, so you don't have to open the PDF. (Where a slide's data table shows the
+  final answers of a trace, an earlier table is shown instead.)
+- **New questions in the same style.** Every level can make endless new questions
+  from the same slide or lab code, with new numbers, names or words. If you miss
+  your shot, the level's two tasks come first, then a new one each time, with a
+  learner note on top - never the same question twice in a row. Review mode (all
+  levels done) and practice mix them in too.
 - **Lessons & practice** (main menu): re-read any concept you've reached and
-  practise it without playing pool. Both versions of each task, then the next level.
+  practise it without playing pool: both versions, then new questions for as long
+  as you like, or Next level.
 - **Unlock all (revision)** on the Progress screen opens every lesson straight away.
 
 ## Controls
@@ -50,6 +61,9 @@ once: the levels have been renumbered.
 | Key | What it does |
 |---|---|
 | Ctrl/Cmd + Enter | Run your code (or click Run) |
+| Arrow keys | Move the cursor in the code box (click to put it anywhere) |
+| Cmd/Ctrl + Left/Right, Home, End | Jump to the start or end of the line |
+| Backspace / Delete | Delete before / after the cursor |
 | Tab | Switch between the answer box and the call box |
 | Mouse | Aim; hold the left button to charge, let go to shoot |
 | Up / Down | Scroll the shot log (from Level 44) |
@@ -74,6 +88,9 @@ When an answer is right, the game runs the real version of that code from
 
 All of this was checked before release: every accepted code answer compiles as
 real C++ in its code, and every trace answer was confirmed by running the code.
+The made-up questions work out their answers by running the same code (or the real
+lab function). As a check, over a thousand of them were turned into real programs,
+compiled and run, and every one printed exactly the answer the game expects.
 
 ## The 54 levels
 
@@ -109,7 +126,8 @@ real C++ in its code, and every trace answer was confirmed by running the code.
 | `src/play.cpp` | The game screen and practice: questions, hints, stars, shooting, banners |
 | `src/pool.cpp` | Table, balls, physics, 8-ball rules and the aim guide |
 | `src/effects.cpp` | Particles, floating text, screen shake, and sounds made in code |
-| `src/questions.cpp` | The answer checker, and saving progress to `progress.txt` |
+| `src/questions.cpp` | The answer checker, layout hints, and saving progress to `progress.txt` |
+| `src/practice.cpp` | Makes new questions in the lecturer's style for every level |
 | `src/lessons_pointers.cpp` | Chapters 1-4: the Pointers lecture and Lab 2 Part 1 |
 | `src/lessons_memory.cpp` | Chapters 5-6: Memory Management and Classes |
 | `src/lessons_lists.cpp` | Chapters 7-8: linked lists and the Lab 1 review |
@@ -120,7 +138,9 @@ real C++ in its code, and every trace answer was confirmed by running the code.
 
 ## Changing things
 
-- **Edit or add a lesson:** the `lessons_*.cpp` files. Each level is one block.
+- **Edit or add a lesson:** the `lessons_*.cpp` files. Each level is one block,
+  including what its Slide button shows.
+- **Change the made-up questions:** `makeLevelN` in `src/practice.cpp`.
 - **Unlock a concept after every correct answer instead of after potting:** set
   `UNLOCK_BY_POTTING` to `false` in `src/app.h`.
 - **Start again:** Progress, then Reset progress (or delete `progress.txt`).

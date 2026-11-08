@@ -30,6 +30,24 @@ void setFeedback(App *app, const char *text, bool good) {
     app->feedbackGood = good;
 }
 
+// The question being asked right now: one of the level's two tasks, or a made-up one
+Task *currentTask(App *app) {
+    if (app->usingMadeUp) return &app->madeUp.task;
+    return &getLevel(app->questionLevel)->tasks[app->version];
+}
+
+// Makes a new question in the lecturer's style for the current level
+// (trying again if it happens to come out the same as the last one)
+void useMadeUpQuestion(App *app) {
+    char lastCode[sizeof(app->madeUp.code)];
+    snprintf(lastCode, sizeof(lastCode), "%s", app->madeUp.code);
+    for (int tries = 0; tries < 5; tries++) {
+        if (!makeQuestion(app->questionLevel, &app->madeUp)) return;   // this level has none
+        if (strcmp(app->madeUp.code, lastCode) != 0) break;
+    }
+    app->usingMadeUp = true;
+}
+
 // The banner that slides down from the top when you unlock something
 void showBanner(App *app, const char *title, const char *text) {
     snprintf(app->bannerTitle, sizeof(app->bannerTitle), "%s", title);
@@ -41,7 +59,7 @@ void showBanner(App *app, const char *title, const char *text) {
 
 // Finishing a chapter unlocks an upgrade, like the upgrades in The Farmer Was Replaced
 const char *upgradeFor(int levelsDone) {
-    if (levelsDone == AIM_GUIDE_LEVEL) return "Upgrade unlocked: aim guide! A ghost ball shows where you'll hit.";
+    if (levelsDone == AIM_GUIDE_LEVEL) return "Upgrade unlocked: ghost ball! See exactly where the cue ball will hit.";
     if (levelsDone == BALL_PATH_LEVEL) return "Upgrade unlocked: ball path! See where the object ball will go.";
     if (levelsDone == GOLD_CUE_LEVEL) return "Upgrade unlocked: the golden cue!";
     return nullptr;
@@ -74,7 +92,7 @@ void completeLevel(App *app) {
 
 // Clears the answer, hints and tiles for the question in app->questionLevel / app->version
 void resetQuestion(App *app) {
-    Task *task = &getLevel(app->questionLevel)->tasks[app->version];
+    Task *task = currentTask(app);
 
     clearCodeBox(&app->answerBox);
     if (task->kind == TASK_TYPE) {
@@ -111,22 +129,33 @@ void prepareNextShot(App *app) {
     app->practising = false;
     app->reviewMode = app->levelsDone >= LEVEL_COUNT;
 
+    app->usingMadeUp = false;
     if (app->reviewMode) {
-        // Every level is done, so practise a random one (not the call level:
-        // you call a ball before every shot anyway)
+        // Every level is done, so practise a random one (not the call level).
+        // Half the time it's a made-up question, so it isn't the same over and over.
         app->questionLevel = GetRandomValue(1, LEVEL_COUNT);
         if (app->questionLevel == CALL_LEVEL) app->questionLevel = CALL_LEVEL + 1;
         app->version = GetRandomValue(0, 1);
+        if (GetRandomValue(0, 1) == 0) useMadeUpQuestion(app);
     } else {
         app->questionLevel = currentLevel(app);
         // You don't call a ball on the break, so practise the level before instead
         if (game->isBreak && app->questionLevel == CALL_LEVEL) app->questionLevel = CALL_LEVEL - 1;
-        app->version = app->askCount % 2;   // alternate between the two versions
+        // First the level's two tasks. After that (if you keep missing the shot),
+        // a new made-up question each time, so you never get the same one twice in a row.
+        if (app->askCount < 2 || app->questionLevel == CALL_LEVEL) {
+            app->version = app->askCount % 2;
+        } else {
+            useMadeUpQuestion(app);
+        }
         app->askCount++;
     }
 
-    // After Level 3 you call a ball before every shot (apart from the break)
-    app->callNeeded = !game->isBreak && app->levelsDone >= CALL_LEVEL && app->questionLevel != CALL_LEVEL;
+    // After Level 3 you call a ball after every 2 of your own balls, and for the 8
+    Player *shooter = &game->players[game->currentPlayer];
+    bool goingForThe8 = !game->tableOpen && ballsLeft(game, shooter->group) == 0;
+    bool callDue = game->potsSinceCall[game->currentPlayer] >= 2 || goingForThe8;
+    app->callNeeded = !game->isBreak && app->levelsDone >= CALL_LEVEL && app->questionLevel != CALL_LEVEL && callDue;
     if (reached(app, STEP_LEVEL)) app->callBox.placeholder = "Ball *target = balls + ...;";
     else app->callBox.placeholder = "Ball *target = &balls[...];";
 
@@ -149,7 +178,7 @@ void prepareNextShot(App *app) {
 
 // ORDER tasks: the clicked tiles joined together. Other tasks: what was typed.
 void getAnswerText(App *app, char *out, int size) {
-    Task *task = &getLevel(app->questionLevel)->tasks[app->version];
+    Task *task = currentTask(app);
     out[0] = '\0';
     if (task->kind != TASK_ORDER) {
         snprintf(out, size, "%s", app->answerBox.text);
@@ -164,7 +193,7 @@ void getAnswerText(App *app, char *out, int size) {
 void runCode(App *app) {
     Game *game = &app->game;
     Level *level = getLevel(app->questionLevel);
-    Task *task = &level->tasks[app->version];
+    Task *task = currentTask(app);
 
     char answer[600];
     getAnswerText(app, answer, sizeof(answer));
@@ -280,7 +309,7 @@ void finishShot(App *app) {
 const float SECONDS_PER_LINE = 0.4f;   // how long each line lights up when the code runs
 
 int linesToRun(App *app) {
-    Task *task = &getLevel(app->questionLevel)->tasks[app->version];
+    Task *task = currentTask(app);
     int lines = countLines(app->answerBox.text);
     if (task->kind == TASK_ORDER) lines = app->chosenCount;
     if (app->callNeeded) lines++;
@@ -298,7 +327,7 @@ void updateCodePhase(App *app) {
         return;
     }
 
-    Task *task = &getLevel(app->questionLevel)->tasks[app->version];
+    Task *task = currentTask(app);
     bool twoBoxes = app->callNeeded && !app->practising && task->kind != TASK_ORDER;
     if (IsKeyPressed(KEY_TAB) && twoBoxes) {
         app->answerBox.focused = !app->answerBox.focused;
@@ -471,6 +500,7 @@ void drawLessonPanel(App *app) {
 
     const char *label = "Back to the task";
     if (isNew) label = "Try it";
+    if (button(Rectangle{ x, SCREEN_HEIGHT - 56.0f, 170, 40 }, "Show the slide")) app->showSlide = true;
     Rectangle tryButton = { SCREEN_WIDTH - 200.0f, SCREEN_HEIGHT - 56.0f, 180, 40 };
     if (button(tryButton, label)) {
         app->lessonShown = true;
@@ -584,8 +614,7 @@ void nextPracticeQuestion(App *app);
 
 // Everything for answering one task: the code, the answer, hints, feedback and buttons
 void drawTaskArea(App *app, float x, float y, float width, float bottom) {
-    Level *level = getLevel(app->questionLevel);
-    Task *task = &level->tasks[app->version];
+    Task *task = currentTask(app);
     bool running = app->phase == PHASE_RUNNING && !app->practising;
     bool locked = running || app->solved;
 
@@ -596,6 +625,15 @@ void drawTaskArea(App *app, float x, float y, float width, float bottom) {
     drawText("worth", x + badgeWidth + 12, y + 3, 14, COLOUR_MUTED);
     drawStars(x + badgeWidth + 70, y + 11, worth, 8);
     y += 32;
+
+    // Made-up questions start with a learner note: a reminder and a small example
+    if (task->note != nullptr && task->note[0] != '\0') {
+        float noteHeight = wrappedHeight(task->note, width - 20, 14) + 12;
+        DrawRectangle((int)x, (int)y, (int)width, (int)noteHeight, Color{ 48, 44, 24, 255 });
+        DrawRectangle((int)x, (int)y, 4, (int)noteHeight, COLOUR_ACCENT);
+        drawWrapped(task->note, x + 12, y + 6, width - 20, 14, COLOUR_TEXT);
+        y += noteHeight + 8;
+    }
 
     // The question and its code
     y += drawWrapped(task->task, x, y, width, 15, COLOUR_TEXT) + 6;
@@ -635,8 +673,14 @@ void drawTaskArea(App *app, float x, float y, float width, float bottom) {
         y += app->answerBox.area.height + 10;
     }
 
-    // The call line (only in the game)
+    // The call line (only in the game, after every 2 of your balls and for the 8)
     bool showCall = app->callNeeded && !app->practising;
+    if (!showCall && !app->practising && app->levelsDone >= CALL_LEVEL && app->questionLevel != CALL_LEVEL) {
+        int potted = app->game.potsSinceCall[app->game.currentPlayer];
+        drawText(TextFormat("No call this shot. You call a ball after every 2 of yours (%d more to go).", 2 - potted),
+                 x, y, 13, COLOUR_MUTED);
+        y += 22;
+    }
     if (showCall) {
         drawText("Call your ball (Tab switches boxes):", x, y, 14, COLOUR_ACCENT);
         y += 20;
@@ -657,9 +701,20 @@ void drawTaskArea(App *app, float x, float y, float width, float bottom) {
         }
     }
 
-    // The hints asked for so far
-    for (int h = 0; h < app->hintsShown; h++) {
-        y += drawWrapped(TextFormat("Hint %d: %s", h + 1, task->hints[h]), x, y, width, 14, COLOUR_ACCENT) + 2;
+    // The hints asked for so far. The 4th hint is the layout of the answer,
+    // and it replaces the first three to save space.
+    if (app->hintsShown == 4 && task->layout != nullptr) {
+        drawText("Last hint - the layout:", x, y, 14, COLOUR_ACCENT);
+        y += 20;
+        float layoutHeight = countLines(task->layout) * lineHeight(14) + 12;
+        DrawRectangle((int)x, (int)y, (int)width, (int)layoutHeight, COLOUR_CODE_BG);
+        DrawRectangleLinesEx(Rectangle{ x, y, width, layoutHeight }, 1, Fade(COLOUR_ACCENT, 0.6f));
+        drawCode(task->layout, x + 10, y + 6, 14, width - 20);
+        y += layoutHeight + 6;
+    } else {
+        for (int h = 0; h < app->hintsShown && h < 3; h++) {
+            y += drawWrapped(TextFormat("Hint %d: %s", h + 1, task->hints[h]), x, y, width, 14, COLOUR_ACCENT) + 2;
+        }
     }
 
     // Feedback: why it's wrong (red) or "Correct!" (green)
@@ -681,9 +736,10 @@ void drawTaskArea(App *app, float x, float y, float width, float bottom) {
         app->chosenCount = 0;
         app->answerBox.focused = task->kind != TASK_ORDER;
     }
-    const char *hintLabel = TextFormat("Hint (%d/3)", app->hintsShown);
-    if (app->hintsShown < 3) {
-        if (button(Rectangle{ x + 112, buttonY, 130, 38 }, hintLabel)) app->hintsShown++;
+    const char *hintLabel = TextFormat("Hint (%d/4)", app->hintsShown);
+    if (app->hintsShown == 3) hintLabel = "Show layout";
+    if (app->hintsShown < 4) {
+        if (button(Rectangle{ x + 112, buttonY, 150, 38 }, hintLabel)) app->hintsShown++;
     } else {
         drawText("No more hints", x + 120, buttonY + 11, 14, COLOUR_MUTED);
     }
@@ -700,11 +756,15 @@ void drawCodePanel(App *app) {
 
     const char *heading = TextFormat("Level %d - %s", app->questionLevel, chapterName(level->chapter));
     if (app->reviewMode) heading = TextFormat("Review - Level %d - %s", app->questionLevel, chapterName(level->chapter));
+    if (app->usingMadeUp) heading = TextFormat("Level %d - a new question in the same style", app->questionLevel);
     drawText(heading, x, y, 14, COLOUR_MUTED);
     drawBold(level->title, x, y + 18, 22, COLOUR_TEXT);
-    if (app->phase != PHASE_RUNNING && button(Rectangle{ SCREEN_WIDTH - 120.0f, y, 100, 30 }, "Lesson")) {
-        setPhase(app, PHASE_LESSON);
-        return;
+    if (app->phase != PHASE_RUNNING) {
+        if (button(Rectangle{ SCREEN_WIDTH - 230.0f, y, 100, 30 }, "Slide")) app->showSlide = true;
+        if (button(Rectangle{ SCREEN_WIDTH - 120.0f, y, 100, 30 }, "Lesson")) {
+            setPhase(app, PHASE_LESSON);
+            return;
+        }
     }
     drawTaskArea(app, x, y + 50, width, SCREEN_HEIGHT - 52.0f);
 }
@@ -712,7 +772,7 @@ void drawCodePanel(App *app) {
 // The panel while aiming and while the balls roll: your code and its variables
 void drawShotPanel(App *app) {
     Game *game = &app->game;
-    Task *task = &getLevel(app->questionLevel)->tasks[app->version];
+    Task *task = currentTask(app);
     float x = PANEL_X + 20;
     float width = SCREEN_WIDTH - x - 20;
     float y = 70;
@@ -773,7 +833,7 @@ void drawShotPanel(App *app) {
         y += 80;
         drawWrapped("Aim with the mouse. Hold the left button to charge the power, then let go to shoot.", x, y, width, 15, COLOUR_TEXT);
         y += 48;
-        if (app->levelsDone >= AIM_GUIDE_LEVEL) drawText("Upgrade: aim guide", x, y, 13, COLOUR_GOOD);
+        if (app->levelsDone >= AIM_GUIDE_LEVEL) drawText("Upgrade: ghost ball", x, y, 13, COLOUR_GOOD);
         if (app->levelsDone >= BALL_PATH_LEVEL) drawText("Upgrade: ball path", x + 170, y, 13, COLOUR_GOOD);
         if (app->levelsDone >= GOLD_CUE_LEVEL) drawText("Upgrade: golden cue", x + 330, y, 13, COLOUR_ACCENT);
     }
@@ -812,6 +872,29 @@ void drawGameOver(App *app) {
     if (button(menu, "Main menu")) app->screen = SCREEN_MENU;
 }
 
+// The Slide window: what the slides (or lab sheet) actually say, so you don't
+// have to open the PDF. Close it with the button or Esc.
+void drawSlideOverlay(App *app) {
+    Level *level = getLevel(app->questionLevel);
+    if (app->screen == SCREEN_CODEX) level = getLevel(app->codexLevel);
+
+    DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, Fade(BLACK, 0.7f));
+    Rectangle box = { 140, 40, SCREEN_WIDTH - 280.0f, SCREEN_HEIGHT - 80.0f };
+    DrawRectangleRec(box, COLOUR_PANEL);
+    DrawRectangleLinesEx(box, 2, COLOUR_ACCENT);
+
+    drawBold("FROM YOUR NOTES", box.x + 24, box.y + 18, 15, COLOUR_ACCENT);
+    drawBold(level->slideTitle, box.x + 24, box.y + 40, 20, COLOUR_TEXT);
+    Rectangle page = { box.x + 24, box.y + 76, box.width - 48, box.height - 150 };
+    DrawRectangleRec(page, COLOUR_CODE_BG);
+    drawCode(level->slideText, page.x + 14, page.y + 12, 14, page.width - 28);
+
+    if (button(Rectangle{ box.x + box.width - 164, box.y + box.height - 56, 140, 40 }, "Close") ||
+        IsKeyPressed(KEY_ESCAPE)) {
+        app->showSlide = false;
+    }
+}
+
 // The unlock banner slides down, waits, then slides back up
 void drawBanner(App *app) {
     if (app->bannerTimer <= 0) return;
@@ -844,12 +927,15 @@ void playScreen(App *app) {
     if (app->wrongTimer > 0) app->wrongTimer -= dt;
 
     // ---------- Update ----------
-    if (IsKeyPressed(KEY_ESCAPE)) {
+    bool blocked = app->showSlide;   // nothing else reacts while the Slide window is open
+    if (!blocked && IsKeyPressed(KEY_ESCAPE)) {
         app->screen = SCREEN_MENU;
         return;
     }
 
-    if (app->phase == PHASE_CODE) {
+    if (blocked) {
+        // wait for the Slide window to close
+    } else if (app->phase == PHASE_CODE) {
         updateCodePhase(app);
     } else if (app->phase == PHASE_RUNNING) {
         app->runTimer += dt;
@@ -880,8 +966,8 @@ void playScreen(App *app) {
     camera.offset = updateShake(dt);
     BeginMode2D(camera);
     drawTable();
-    if (app->phase == PHASE_AIM && app->levelsDone >= AIM_GUIDE_LEVEL) {
-        drawAimGuide(game, app->aimX, app->aimY, app->levelsDone >= BALL_PATH_LEVEL);
+    if (app->phase == PHASE_AIM) {
+        drawAimGuide(game, app->aimX, app->aimY, app->levelsDone >= AIM_GUIDE_LEVEL, app->levelsDone >= BALL_PATH_LEVEL);
     }
     drawBalls(game);
     drawTargetRing(game);
@@ -906,6 +992,7 @@ void playScreen(App *app) {
 
     drawTopBar(app);
     if (app->phase == PHASE_GAME_OVER) drawGameOver(app);
+    if (app->showSlide) drawSlideOverlay(app);
 }
 
 // ============================================================
@@ -914,6 +1001,8 @@ void playScreen(App *app) {
 
 void startPractice(App *app, int level) {
     app->practising = true;
+    app->usingMadeUp = false;
+    app->showSlide = false;
     app->questionLevel = level;
     app->version = 0;
     app->callNeeded = false;
@@ -922,14 +1011,26 @@ void startPractice(App *app, int level) {
     app->screen = SCREEN_PRACTICE;
 }
 
-// After a correct answer: the other version, then the next level you've reached
+// The next level you've reached (back to Level 1 after the last one)
+void nextPracticeLevel(App *app) {
+    app->questionLevel++;
+    if (app->questionLevel > LEVEL_COUNT || !reached(app, app->questionLevel)) app->questionLevel = 1;
+    app->version = 0;
+    app->usingMadeUp = false;
+    resetQuestion(app);
+    setPhase(app, PHASE_CODE);
+}
+
+// After a correct answer: the other version, then new made-up questions for as long as you like
 void nextPracticeQuestion(App *app) {
-    if (app->version == 0) {
+    if (!app->usingMadeUp && app->version == 0) {
         app->version = 1;
     } else {
-        app->version = 0;
-        app->questionLevel++;
-        if (app->questionLevel > LEVEL_COUNT || !reached(app, app->questionLevel)) app->questionLevel = 1;
+        useMadeUpQuestion(app);
+        if (!app->usingMadeUp) {   // this level has no made-up questions
+            nextPracticeLevel(app);
+            return;
+        }
     }
     resetQuestion(app);
     setPhase(app, PHASE_CODE);
@@ -939,18 +1040,23 @@ void practiceScreen(App *app) {
     float dt = GetFrameTime();
     app->phaseTimer += dt;
     if (app->wrongTimer > 0) app->wrongTimer -= dt;
-    if (IsKeyPressed(KEY_ESCAPE)) {
-        app->screen = SCREEN_CODEX;
-        return;
+    if (!app->showSlide) {
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            app->screen = SCREEN_CODEX;
+            return;
+        }
+        updateCodePhase(app);
     }
-    updateCodePhase(app);
 
     Level *level = getLevel(app->questionLevel);
     ClearBackground(COLOUR_BG);
     drawBold("PRACTICE", 30, 18, 30, COLOUR_ACCENT);
-    drawText(TextFormat("Level %d - Chapter %d: %s.  Stars here count too.", app->questionLevel, level->chapter,
-                        chapterName(level->chapter)), 30, 56, 15, COLOUR_MUTED);
+    const char *kind = "the level's own question";
+    if (app->usingMadeUp) kind = "a new question in the same style";
+    drawText(TextFormat("Level %d - %s - %s", app->questionLevel, chapterName(level->chapter), kind), 30, 56, 15, COLOUR_MUTED);
     if (button(Rectangle{ SCREEN_WIDTH - 170.0f, 22, 150, 40 }, "Back")) app->screen = SCREEN_CODEX;
+    if (button(Rectangle{ SCREEN_WIDTH - 360.0f, 22, 175, 40 }, "Next level >")) nextPracticeLevel(app);
+    if (button(Rectangle{ SCREEN_WIDTH - 510.0f, 22, 135, 40 }, "Slide")) app->showSlide = true;
 
     // The lesson on the left, like the info pages in The Farmer Was Replaced
     DrawRectangle(20, 88, 470, SCREEN_HEIGHT - 100, COLOUR_PANEL);
@@ -964,4 +1070,5 @@ void practiceScreen(App *app) {
     if (app->phaseTimer < 0.25f) {
         DrawRectangle(505, 88, SCREEN_WIDTH - 525, SCREEN_HEIGHT - 100, Fade(COLOUR_PANEL, 1 - app->phaseTimer / 0.25f));
     }
+    if (app->showSlide) drawSlideOverlay(app);
 }

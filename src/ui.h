@@ -25,6 +25,7 @@ float textWidth(const char *text, float size);
 float charWidth(float size);
 float lineHeight(float size);
 float drawWrapped(const char *text, float x, float y, float width, float size, Color colour);
+float wrappedHeight(const char *text, float width, float size);
 
 // ---------- Stars (3 = solved without hints) ----------
 void drawStar(float x, float y, float size, Color colour);

@@ -26,6 +26,25 @@ void setupMemoryLessons() {
                      "  // x now out of scope, memory it used can be reused\n"
                      "}";
     level->inGame = "Not used by the game, but dangling pointers are a favourite test question.";
+    level->slideTitle = "Memory Management lecture, slides 3-11";
+    level->slideText = "Slide 3: Scoping and Memory\n"
+                       "- When a variable goes out of scope, that memory is no longer\n"
+                       "  guaranteed to store the variable's value\n"
+                       "int main() {\n"
+                       "  if (true) {\n"
+                       "    int x = 5;\n"
+                       "  }\n"
+                       "  // x now out of scope, memory it used to occupy can be reused\n"
+                       "}\n"
+                       "\n"
+                       "Slide 8: Here, p has become a dangling pointer\n"
+                       "(points to memory whose contents are undefined)\n"
+                       "\n"
+                       "Slide 9: A Problematic Task. Incorrect implementation:\n"
+                       "int* getPtrToFive() {\n"
+                       "  int x = 5;\n"
+                       "  return &x;\n"
+                       "}";
 
     task = startTask(level, 0, TASK_BUG, "Slide 8: which line uses a dangling pointer? Type the line number.",
                      "int main() {\n"
@@ -43,6 +62,9 @@ void setupMemoryLessons() {
     setHints(task, "Where does x stop existing?",
                    "x goes out of scope at the } that ends the if block.",
                    "Which line reads through p after that?");
+    task->layout = "Line 4: x is created inside the if block.\n"
+                   "Line 6: the } ends the if block, so x is gone.\n"
+                   "Which later line still reads through p?";
 
     task = startTask(level, 1, TASK_TYPE, "Slide 17: fix getPtrToFive so the memory stays allocated after the function returns.",
                      "int *getPtrToFive() {\n"
@@ -56,7 +78,7 @@ void setupMemoryLessons() {
     addMistake(task, "int *x;", "That's a pointer to nowhere, so *x = 5; would write into random memory.");
     addMistake(task, "int *x = &x;", "x can't point at itself, and a local would still disappear when the function returns.");
     setHints(task, "Local variables disappear when the function returns.",
-                   "Memory from new stays until you delete it (slide 12).",
+                   "Slide 12: new is 'another way to allocate memory, where the memory will remain allocated until you manually de-allocate it'.",
                    "int *x = ...;");
 
     // ---------- Level 24 ----------
@@ -68,6 +90,24 @@ void setupMemoryLessons() {
                      "// use memory allocated by new\n"
                      "delete x;";
     level->inGame = "Every entry in the shot log is made with new, and freed with delete when a new game starts.";
+    level->slideTitle = "Memory Management lecture, slides 12-18";
+    level->slideText = "Slide 12: The new operator\n"
+                       "- Another way to allocate memory, where the memory will remain\n"
+                       "  allocated until you manually de-allocate it\n"
+                       "- Returns a pointer to the newly allocated memory\n"
+                       "      int *x = new int;\n"
+                       "\n"
+                       "Slide 14: The new operator and Brackets!\n"
+                       "      int *x = new int(5);\n"
+                       "      int *x = new int{5};\n"
+                       "      int *x = new int[5];   // see later what [] does\n"
+                       "\n"
+                       "Slide 15: int x; is allocated on the stack. new int is allocated on the heap.\n"
+                       "\n"
+                       "Slide 16: The delete operator\n"
+                       "- De-allocates memory that was previously allocated using new\n"
+                       "- Takes a pointer to the memory location\n"
+                       "      delete x;";
 
     task = startTask(level, 0, TASK_TYPE, "Slide 14: allocate a new int that starts as 5.",
                      "int *x = ____;");
@@ -77,7 +117,7 @@ void setupMemoryLessons() {
     addMistake(task, "new int", "That makes an int, but doesn't set it to 5.");
     addMistake(task, "5", "x is a pointer, so it needs an address from new, not a number.");
     setHints(task, "new returns a pointer to a new int.",
-                   "Slide 14 shows how to give it a starting value.",
+                   "Slide 14 ('The new operator and Brackets') shows new int with round brackets, curly brackets, and square brackets (an array).",
                    "new int, then the value in brackets.");
 
     task = startTask(level, 1, TASK_TYPE, "Slide 18: you've finished with the int. Free its memory.",
@@ -90,7 +130,7 @@ void setupMemoryLessons() {
     addMistake(task, "free(p);", "free goes with malloc. Memory from new goes back with delete.");
     addMistake(task, "p = nullptr;", "That forgets the address but doesn't free the memory: it's a leak.");
     setHints(task, "Memory from new has to be given back.",
-                   "The operator for that is on slide 16.",
+                   "Slide 16: 'The delete operator de-allocates memory that was previously allocated using new. Takes a pointer to the memory location.'",
                    "delete, then the pointer.");
 
     // ---------- Level 25 ----------
@@ -104,6 +144,22 @@ void setupMemoryLessons() {
                      "    cout << *p << endl;\n"
                      "}   // three ints allocated, none deleted";
     level->inGame = "Not used by the game, but the slides spend a lot of time on this, so expect it.";
+    level->slideTitle = "Memory Management lecture, slides 19-26";
+    level->slideText = "Slide 23:\n"
+                       "- When your program allocates memory but is unable to\n"
+                       "  de-allocate it, this is a memory leak\n"
+                       "int main() {\n"
+                       "  int *p;\n"
+                       "  for (int i = 0; i < 3; ++i) {\n"
+                       "    p = getPtrToFive();\n"
+                       "    cout << *p << endl;\n"
+                       "  }\n"
+                       "}\n"
+                       "\n"
+                       "Slide 24: Does adding a delete after the loop fix this memory leak?\n"
+                       "(slide 25 gives the answer, so it's left out here)\n"
+                       "\n"
+                       "Slide 26: To fix the memory leak, de-allocate memory within the loop";
 
     task = startTask(level, 0, TASK_TYPE, "Slide 26: fix the memory leak.",
                      "int main() {\n"
@@ -137,6 +193,9 @@ void setupMemoryLessons() {
     setHints(task, "How many times does new run?",
                    "How many times does delete run?",
                    "Three news, one delete.");
+    task->layout = "new runs 3 times (once each time round the loop).\n"
+                   "delete runs 1 time (after the loop).\n"
+                   "Can 1 delete free 3 allocations?";
 
     // ---------- Level 26 ----------
     level = startLevel(26, 5, "Memory mistakes", "mistakes", "Memory Management lecture, slides 34-39");
@@ -147,6 +206,25 @@ void setupMemoryLessons() {
                      "cout << *x << endl; // 5\n"
                      "delete x;           // use it, then delete it once";
     level->inGame = "Not used by the game, but spot-the-bug questions like these are common in tests.";
+    level->slideTitle = "Memory Management lecture, slides 34-39";
+    level->slideText = "Slide 35: Don't Use Memory After Deletion. The correct version:\n"
+                       "int main() {\n"
+                       "  int *x = getPtrToFive();\n"
+                       "  cout << *x << endl; // 5\n"
+                       "  delete x;\n"
+                       "}\n"
+                       "\n"
+                       "Slide 37: Don't delete memory twice. The correct version:\n"
+                       "  cout << *x << endl; // 5\n"
+                       "  delete x;\n"
+                       "}\n"
+                       "\n"
+                       "Slide 39: Only delete if memory was allocated by new. The correct version:\n"
+                       "int main() {\n"
+                       "  int x = 5;\n"
+                       "  int *xPtr = &x;\n"
+                       "  cout << *xPtr << endl;\n"
+                       "}";
 
     task = startTask(level, 0, TASK_BUG, "Slide 34: which line is wrong? Type the line number.",
                      "int main() {\n"
@@ -160,6 +238,9 @@ void setupMemoryLessons() {
     setHints(task, "Follow x from top to bottom.",
                    "After delete, the memory isn't yours any more.",
                    "Which line still reads it?");
+    task->layout = "Line 3 frees the memory that x points at.\n"
+                   "After that, any line that reads *x is using freed memory.\n"
+                   "Which line is that?";
 
     task = startTask(level, 1, TASK_BUG, "Slide 38: which line is wrong? Type the line number.",
                      "int main() {\n"
@@ -174,6 +255,9 @@ void setupMemoryLessons() {
     setHints(task, "Where did the memory xPtr points at come from?",
                    "x is a normal variable, not memory from new.",
                    "Which line tries to give it back?");
+    task->layout = "Line 3: xPtr = &x, and x is a normal variable (not from new).\n"
+                   "Only memory from new can be deleted.\n"
+                   "Which line deletes?";
 
     // ---------- Level 27 ----------
     level = startLevel(27, 5, "Arrays with new[]", "new[]", "Memory Management lecture, slides 40-45");
@@ -184,6 +268,24 @@ void setupMemoryLessons() {
                      "arr[0] = 7;\n"
                      "delete[] arr;";
     level->inGame = "Not used by the game, but slide 45 is the lecture's exercise.";
+    level->slideTitle = "Memory Management lecture, slides 40-45";
+    level->slideText = "Slide 40: When allocating arrays on the stack (using \"int arr[SIZE]\"),\n"
+                       "size must be a constant\n"
+                       "      int arr[numItems]; // not allowed\n"
+                       "\n"
+                       "Slide 41: If we use new[] to allocate arrays, they can have variable size\n"
+                       "      int *arr = new int[numItems];\n"
+                       "\n"
+                       "Slide 45: Ex: Storing values input by the user\n"
+                       "  int *arr = new int[numItems];\n"
+                       "  for (int i = 0; i < numItems; ++i) {\n"
+                       "    cout << \"enter item \" << i << \": \";\n"
+                       "    cin >> arr[i];\n"
+                       "  }\n"
+                       "  for (int i = 0; i < numItems; ++i) {\n"
+                       "    cout << arr[i] << endl;\n"
+                       "  }\n"
+                       "  delete[] arr;";
 
     task = startTask(level, 0, TASK_TYPE, "Slide 41: allocate an array of numItems ints.",
                      "int numItems;\n"
@@ -195,7 +297,7 @@ void setupMemoryLessons() {
     addMistake(task, "int *arr = new int(numItems);", "Round brackets make ONE int with that value. An array needs the other brackets.");
     addMistake(task, "int arr = new int[numItems];", "new[] returns a pointer, so arr needs a * in its type.");
     setHints(task, "The size is only known when the program runs.",
-                   "new can allocate a whole array (slide 41).",
+                   "Slide 41: 'If we use new[] to allocate arrays, they can have variable size.'",
                    "int *arr = new int...;");
 
     task = startTask(level, 1, TASK_TYPE, "Slide 45: you've finished with the array. Free it.",
@@ -219,6 +321,22 @@ void setupMemoryLessons() {
                      "// each arr2D[row] then gets its own array of ints,\n"
                      "// and arr2D[row][col] is one element";
     level->inGame = "Not used by the game, but it's on slides 46-48.";
+    level->slideTitle = "Memory Management lecture, slides 46-48: 2D Arrays";
+    level->slideText = "int** arr2D = new int*[rows];\n"
+                       "for (int row = 0; row < rows; row++) {\n"
+                       "    arr2D[row] = new int[cols];\n"
+                       "}\n"
+                       "int counter = 1;\n"
+                       "for (int row = 0; row < rows; row++) {\n"
+                       "    for (int col = 0; col < cols; col++) {\n"
+                       "        arr2D[row][col] = counter++;\n"
+                       "    }\n"
+                       "}\n"
+                       "// Deallocate memory\n"
+                       "for (int row = 0; row < rows; row++) {\n"
+                       "    delete[] arr2D[row];\n"
+                       "}\n"
+                       "delete[] arr2D;";
 
     task = startTask(level, 0, TASK_TYPE, "Slide 47: give each row its own array of cols ints.",
                      "int** arr2D = new int*[rows];\n"
@@ -257,6 +375,23 @@ void setupMemoryLessons() {
                      "    return 1;\n"
                      "}";
     level->inGame = "Not used by the game (it's C++), but your test is on C pointers too.";
+    level->slideTitle = "Memory Management lecture, slides 49-51: C Memory Management";
+    level->slideText = "int *ptr = (int*)malloc(sizeof(int));\n"
+                       "if (ptr == NULL) {\n"
+                       "    printf(\"Memory allocation failed!\\n\");\n"
+                       "    return 1;\n"
+                       "}\n"
+                       "*ptr = 42;\n"
+                       "free(ptr);\n"
+                       "\n"
+                       "int *arr = (int*)malloc(size * sizeof(int));   // slide 50\n"
+                       "\n"
+                       "Slide 51: Key Points to Remember\n"
+                       "- Always check if malloc() returns NULL - allocation can fail\n"
+                       "- Always call free() for every successful malloc() to avoid memory leaks\n"
+                       "- Use sizeof() to get the correct size of the data type\n"
+                       "- Don't use memory after freeing it - this causes undefined behavior\n"
+                       "- Set pointer to NULL after freeing (good practice)";
 
     task = startTask(level, 0, TASK_TYPE, "Slide 49: allocate memory for a single integer with malloc.",
                      "int *ptr = ____;");
@@ -267,7 +402,8 @@ void setupMemoryLessons() {
     addMistake(task, "(int*)malloc(int)", "malloc needs a number of bytes, and sizeof gives you that.");
     setHints(task, "C allocates memory with malloc.",
                    "malloc needs the number of bytes: use sizeof.",
-                   "Slide 49 also casts the result with (int*).");
+                   "Slide 49 puts (int*) in front of malloc, to turn its result into an int pointer.");
+    task->layout = "(int*)malloc(sizeof(___))";
 
     task = startTask(level, 1, TASK_TYPE, "Slide 51: free the memory, then set ptr to NULL.",
                      "*ptr = 42;\n"
@@ -290,6 +426,23 @@ void setupMemoryLessons() {
     level->example = "int (*functionPtr)(int, int);   // can point at any function that\n"
                      "                                // takes two ints and returns an int";
     level->inGame = "Not used by the game, but it's on slides 55-56.";
+    level->slideTitle = "Memory Management lecture, slides 55-56: Function Pointers";
+    level->slideText = "- We can obtain the address of a C function, store it in a function\n"
+                       "  pointer, and then call the function indirectly through that pointer.\n"
+                       "- The manipulation of function pointers is limited to assignment and\n"
+                       "  indirection; we cannot do arithmetic on function pointers.\n"
+                       "\n"
+                       "int Add(int num1, int num2)\n"
+                       "{\n"
+                       "    return num1 + num2;\n"
+                       "}\n"
+                       "int main()\n"
+                       "{\n"
+                       "    //must have the same return type and parameter types as function\n"
+                       "    int (*functionPtr)(int , int );\n"
+                       "    functionPtr = Add;\n"
+                       "    int result = functionPtr(20, 10);\n"
+                       "}";
 
     task = startTask(level, 0, TASK_TYPE, "Slide 56: make functionPtr point at Add.",
                      "int Add(int num1, int num2) {\n"
@@ -328,6 +481,25 @@ void setupMemoryLessons() {
                      "    count = 5;     // changes the global\n"
                      "}";
     level->inGame = "Not used by the game, but slides 52-54 make a good tracing question.";
+    level->slideTitle = "Memory Management lecture, slides 52-54: Global Variables";
+    level->slideText = "int glVar = 10;\n"
+                       "int main() {\n"
+                       "   int *p;\n"
+                       "   for (int i = 0; i < 3; ++i) {\n"
+                       "     p = getPtrToFive();\n"
+                       "     cout << *p << endl;\n"
+                       "   }\n"
+                       "   glVar=33;\n"
+                       "}\n"
+                       "int *getPtrToFive() {\n"
+                       "    int *x = new int;\n"
+                       "    *x = 5;\n"
+                       "    glVar=20;          // glVar is accessible everywhere\n"
+                       "    return x;\n"
+                       "}\n"
+                       "\n"
+                       "Slide 53 asks: what happens if getPtrToFive() also declares its own int glVar;?\n"
+                       "(slide 54 answers it, so it's left out here)";
 
     task = startTask(level, 0, TASK_TRACE, "Slides 53-54: getPtrToFive() has just run. What is the global glVar now?",
                      "int glVar = 10;\n"
@@ -344,6 +516,9 @@ void setupMemoryLessons() {
     setHints(task, "Look at the first line inside getPtrToFive.",
                    "There are two variables called glVar.",
                    "glVar = 20; changes the one declared inside the function.");
+    task->layout = "Inside getPtrToFive, int glVar; makes a NEW local glVar.\n"
+                   "glVar = 20; changes that local one.\n"
+                   "The global glVar was 10 and ...";
 
     task = startTask(level, 1, TASK_TRACE, "Slide 52: no local glVar this time. getPtrToFive() has just run. What is the global glVar now?",
                      "int glVar = 10;\n"
@@ -359,6 +534,9 @@ void setupMemoryLessons() {
     setHints(task, "Is there a local variable called glVar?",
                    "The global glVar is accessible everywhere.",
                    "So glVar = 20; changes the global.");
+    task->layout = "There's no local glVar inside getPtrToFive.\n"
+                   "So glVar = 20; changes the global glVar,\n"
+                   "which was 10 before the call.";
 
     // =========================================================
     // Chapter 6: Pointers and classes
@@ -372,6 +550,23 @@ void setupMemoryLessons() {
     level->example = "void offsetVector(Vector &v, double offsetX, double offsetY);   // by reference\n"
                      "offsetVector(vec, 1.0, 1.5);";
     level->inGame = "Not used by the game, but it's in the Classes lecture.";
+    level->slideTitle = "Classes lecture, slides 28-29 and 39";
+    level->slideText = "Slide 28: Passing by value passes a copy of the class instance\n"
+                       "to the function; changes aren't preserved\n"
+                       "void offsetPoint(Point p, double x, double y) { // does nothing\n"
+                       "\n"
+                       "Slide 29: When a class instance is passed by reference,\n"
+                       "changes are reflected in the original\n"
+                       "void offsetPoint(Point &p, double x, double y) { // works\n"
+                       "\n"
+                       "Slide 39: Pass objects by pointer if they need to be modified\n"
+                       "void offsetVector(Vector *v, double offsetX, double offsetY) {\n"
+                       "  v->start.x +=offsetX;\n"
+                       "  v->end.x +=offsetX;\n"
+                       "  v->start.y +=offsetY;\n"
+                       "  v->end.y += offsetY;\n"
+                       "}\n"
+                       "offsetVector(&vec, 1.0, 1.5);";
 
     task = startTask(level, 0, TASK_TYPE, "Slide 39: call the pointer version of offsetVector to move vec by 1.0 and 1.5.",
                      "void offsetVector(Vector *v, double offsetX, double offsetY);\n"
@@ -403,6 +598,9 @@ void setupMemoryLessons() {
     setHints(task, "Is the parameter a Point, a Point & or a Point *?",
                    "Pass by value works on a copy.",
                    "So the original p keeps its x.");
+    task->layout = "offsetPoint(Point p, ...) gets a COPY of p.\n"
+                   "The copy's x becomes 3.0 + 1.0.\n"
+                   "The original p.x is still ...";
 
     // ---------- Level 33 ----------
     level = startLevel(33, 6, "A pointer to an object", "->", "Classes lecture, slide 57: Using a pointer to an object");
@@ -413,6 +611,21 @@ void setupMemoryLessons() {
                      "pPtr = &p;\n"
                      "cout << pPtr->x;   // same as p.x";
     level->inGame = "The game reaches a ball's fields through pointers in exactly this way, for example cue->x.";
+    level->slideTitle = "Classes lecture, slide 57: Using a pointer to an object";
+    level->slideText = "int main() {\n"
+                       "  Point* pPtr; // Pointer to Point object. No instance created.\n"
+                       "  Point p;\n"
+                       "  // p.x is 0.0, p.y is 0.0\n"
+                       "  pPtr = &p;\n"
+                       "  cout << p.x << \" \" << p.y;\n"
+                       "  cout << pPtr->x << \" \" << pPtr->y;\n"
+                       "  pPtr->x=10;\n"
+                       "  p.y=20;\n"
+                       "  // use the '->' to access the member data/methods when the\n"
+                       "  // variable points to an instance\n"
+                       "  cout << p.x << \" \" << p.y;\n"
+                       "  cout << pPtr->x << \" \" << pPtr->y;\n"
+                       "}";
 
     task = startTask(level, 0, TASK_TYPE, "Slide 57: set x to 10 through pPtr.",
                      "Point* pPtr;\n"
@@ -425,7 +638,7 @@ void setupMemoryLessons() {
     addMistake(task, "p->x = 10;", "p is an object, not a pointer. Here the pointer is pPtr.");
     addMistake(task, "*pPtr.x = 10;", "The . happens before the *, so this doesn't work.");
     setHints(task, "You're going through a pointer to reach a member.",
-                   "Slide 57 uses an arrow for this.",
+                   "Slide 57: 'use the -> to access the member data/methods when the variable points to an instance'.",
                    "pPtr ... x = 10;");
 
     task = startTask(level, 1, TASK_TRACE, "Slide 57: what does the last line print?",
@@ -441,6 +654,9 @@ void setupMemoryLessons() {
     setHints(task, "How many Point objects are there?",
                    "pPtr points at p.",
                    "So p.y = 20 also changes pPtr->y.");
+    task->layout = "pPtr = &p;   so pPtr->y IS p.y\n"
+                   "p.y = 20;\n"
+                   "cout << pPtr->y;   prints ...";
 
     // ---------- Level 34 ----------
     level = startLevel(34, 6, "Creating objects with new", "new Point", "Classes lecture, slides 58-60: Using New");
@@ -451,6 +667,23 @@ void setupMemoryLessons() {
                      "Point* pPtr;\n"
                      "pPtr = p;    // two pointers, ONE object";
     level->inGame = "Not used by the game, but slides 58-60 are classic test material.";
+    level->slideTitle = "Classes lecture, slides 58-60: Using New";
+    level->slideText = "Slide 58: Use new to create an instance\n"
+                       "int main() {\n"
+                       "  Point* p; // Pointer to Point object. No instance created.\n"
+                       "  p = new Point(); //instance created and p points to it\n"
+                       "  // p->x is 0.0, p->y is 0.0\n"
+                       "  p->x =10;\n"
+                       "  cout << p->x << \" \" << p->y;\n"
+                       "}\n"
+                       "\n"
+                       "Slide 60: Using a pointer to an object created with new\n"
+                       "  Point* p;\n"
+                       "  p = new Point();\n"
+                       "  Point* pPtr;\n"
+                       "  pPtr = p;\n"
+                       "  pPtr->x=10;\n"
+                       "  p->y=20;";
 
     task = startTask(level, 0, TASK_TYPE, "Slide 58: create a Point instance and make p point at it.",
                      "Point* p; // Pointer to Point object. No instance created.\n"
@@ -477,6 +710,9 @@ void setupMemoryLessons() {
     setHints(task, "How many Point objects does new create here?",
                    "pPtr = p; copies the address, not the object.",
                    "So pPtr->x and p->x are the same variable.");
+    task->layout = "pPtr = p;   both point at the SAME Point\n"
+                   "pPtr->x = 10;   sets that Point's x\n"
+                   "cout << p->x;   reads the same x";
 
     // ---------- Level 35 ----------
     level = startLevel(35, 6, "The this pointer", "this", "Classes lecture, slide 61; Operator Overloading notes");
@@ -489,6 +725,23 @@ void setupMemoryLessons() {
                      "    return box;\n"
                      "}";
     level->inGame = "Not used by the game, but this appears in both the Classes and Operator Overloading notes.";
+    level->slideTitle = "Classes lecture, slide 61; Operator Overloading notes";
+    level->slideText = "Slide 61: The \"this\" pointer\n"
+                       "class Point {\n"
+                       "public:\n"
+                       "  double x, y;\n"
+                       "  Point() {\n"
+                       "    this->x = 0.0; this->y = 0.0;\n"
+                       "    cout << \"default constructor\" << endl;\n"
+                       "  }\n"
+                       "};\n"
+                       "\n"
+                       "Operator Overloading notes:\n"
+                       "Clock Clock::operator++() // prefix form\n"
+                       "{\n"
+                       "  tick();        // increment\n"
+                       "  return *this;  // return itself for assignment\n"
+                       "}";
 
     task = startTask(level, 0, TASK_TYPE, "Slide 61: set x to 0.0 using the this pointer.",
                      "Point() {\n"
@@ -518,6 +771,7 @@ void setupMemoryLessons() {
     setHints(task, "The function returns a Clock, not a pointer.",
                    "this is a pointer to the current object.",
                    "Dereference this.");
+    task->layout = "return ___;   // the object itself, not a pointer to it";
 
     // ---------- Level 36 ----------
     level = startLevel(36, 6, "Copies and copy constructors", "copies", "Classes lecture, slides 26, 64 and 71-72");
@@ -530,6 +784,24 @@ void setupMemoryLessons() {
                      "}\n"
                      "Point r = q;        // this calls it";
     level->inGame = "Not used by the game, but slide 71's surprise makes a great test question.";
+    level->slideTitle = "Classes lecture, slides 71-72";
+    level->slideText = "Slide 71: Why make a copy constructor? Assigning all fields\n"
+                       "(default copy constructor) may not be what you want\n"
+                       "class MITStudent {\n"
+                       "public:\n"
+                       "   int studentID;\n"
+                       "   char *name;\n"
+                       "   MITStudent() { studentID = 0; name = NULL; }\n"
+                       "};\n"
+                       "MITStudent student2 = student1;\n"
+                       "student2.name[0] = 'b';\n"
+                       "cout << student1.name;   (the slide's output is left out: it's the trace answer)\n"
+                       "\n"
+                       "Slide 72: strdup() is a c function that duplicates a string.\n"
+                       "MITStudent(MITStudent &o) {\n"
+                       "  studentID = o.studentID;\n"
+                       "  name = _strdup(o.name);\n"
+                       "}";
 
     task = startTask(level, 0, TASK_TRACE, "Slide 71: what does the last line print?",
                      "MITStudent student1;\n"
@@ -544,6 +816,9 @@ void setupMemoryLessons() {
     setHints(task, "name is a char *, so copying the object copies only the address.",
                    "student1.name and student2.name point at the same array.",
                    "Changing student2.name[0] changes that shared array.");
+    task->layout = "student2 = student1 copies the pointer name, not the chars.\n"
+                   "So both names point at the array n, which holds \"foo\".\n"
+                   "student2.name[0] = 'b' changes n[0], so student1.name is now ...";
 
     task = startTask(level, 1, TASK_TYPE, "Slide 72: in the copy constructor, give the new student its own copy of the name.",
                      "MITStudent(MITStudent &o) {\n"
@@ -555,7 +830,7 @@ void setupMemoryLessons() {
     addMistake(task, "name = o.name;", "That copies the pointer again (a shallow copy), so the two students would still share one name.");
     addMistake(task, "*name = *o.name;", "That copies one char into memory that was never allocated.");
     setHints(task, "Copying the pointer isn't enough.",
-                   "Slide 72 uses a C function that duplicates a string.",
+                   "Slide 72: 'strdup() is a c function that duplicates a string.' The slide writes it as _strdup.",
                    "name = _strdup(...);");
 
     // ---------- Level 37 ----------
@@ -567,6 +842,24 @@ void setupMemoryLessons() {
                      "// ...\n"
                      "delete[] points;";
     level->inGame = "Not used by the game, but slides 76-78 bring new, delete and ** together.";
+    level->slideTitle = "Classes lecture, slides 76-78";
+    level->slideText = "Slide 76: Using new to create the array\n"
+                       "Point* points = new Point[30];\n"
+                       "...\n"
+                       "delete[] points;\n"
+                       "\n"
+                       "Slide 77: Array of pointers\n"
+                       "Point* pointPointers[20];\n"
+                       "for (int i = 0; i < 20; i++)\n"
+                       "    pointPointers[i] = new Point(i);\n"
+                       "...\n"
+                       "for (int i = 0; i < 20; i++)\n"
+                       "    delete pointPointers[i];\n"
+                       "\n"
+                       "Slide 78: Using new for the array of pointers\n"
+                       "Point** pointPointers = new Point*[30];\n"
+                       "...\n"
+                       "delete[] pointPointers;";
 
     task = startTask(level, 0, TASK_TYPE, "Slide 77: make element i point at a new Point(i).",
                      "Point* pointPointers[20];\n"
@@ -608,6 +901,23 @@ void setupMemoryLessons() {
                      "    }\n"
                      "};";
     level->inGame = "The game's own DoublyLinkedList has a destructor that deletes every node.";
+    level->slideTitle = "Classes lecture, slide 79: Destructors";
+    level->slideText = "A destructor is called when an object goes out of Scope\n"
+                       "~ClassName()\n"
+                       "\n"
+                       "class TwentyThousandPoints\n"
+                       "{\n"
+                       "public:\n"
+                       "    Point* points;\n"
+                       "    TwentyThousandPoints()\n"
+                       "    {\n"
+                       "        points = new Point[20000];\n"
+                       "    }\n"
+                       "    ~TwentyThousandPoints()\n"
+                       "    {\n"
+                       "        delete[] points;\n"
+                       "    }\n"
+                       "};";
 
     task = startTask(level, 0, TASK_TYPE, "Slide 79: finish the destructor so the 20000 points are freed.",
                      "~TwentyThousandPoints() {\n"
@@ -635,4 +945,5 @@ void setupMemoryLessons() {
     setHints(task, "A destructor has the same name as the class.",
                    "With one extra symbol in front.",
                    "~...()");
+    task->layout = "~___()";
 }

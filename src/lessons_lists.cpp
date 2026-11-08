@@ -22,6 +22,17 @@ void setupListLessons() {
     level->example = "Node* newNode = new Node();\n"
                      "newNode->nextPtr = nullptr;   // nothing after it yet";
     level->inGame = "The shot log under the table is a linked list: one node per shot.";
+    level->slideTitle = "Pointers & Linked List lecture: Basic Structure of a Node";
+    level->slideText = "A linked list is a dynamic data structure where each element (node) contains:\n"
+                       "- Data (the actual information)\n"
+                       "- A pointer to the next node in the list.\n"
+                       "\n"
+                       "struct Node {\n"
+                       "    int data;     // Stores data\n"
+                       "    Node* next;   // Pointer to the next node\n"
+                       "};\n"
+                       "If next is nullptr, it indicates the end of the list.\n"
+                       "(The full program later in the notes calls it nextPtr.)";
 
     task = startTask(level, 0, TASK_TYPE, "Store newData in the new node.",
                      "void InsertAtEnd(Node** ptrToHeadPtr, int newData) {\n"
@@ -59,6 +70,15 @@ void setupListLessons() {
     level->example = "Node* curNodePtr = headPtr;   // start at the first node\n"
                      "// ... then follow the links one by one";
     level->inGame = "The shot log is drawn by walking its list like this.";
+    level->slideTitle = "Pointers & Linked List lecture: Traversing the List";
+    level->slideText = "void PrintList(Node* headPtr) {\n"
+                       "    Node* curNodePtr = headPtr;\n"
+                       "    while (curNodePtr != nullptr) {\n"
+                       "        cout << curNodePtr->data << \" \";\n"
+                       "        curNodePtr = curNodePtr->nextPtr;\n"
+                       "    }\n"
+                       "    cout << endl;\n"
+                       "}";
 
     task = startTask(level, 0, TASK_TYPE, "Type the line that moves curNodePtr on to the next node.",
                      "void PrintList(Node* headPtr) {\n"
@@ -105,6 +125,24 @@ void setupListLessons() {
                      "InsertAtEnd(&headPtr, 10);   // pass the ADDRESS of headPtr,\n"
                      "InsertAtEnd(&headPtr, 20);   // so the function can change it";
     level->inGame = "Every shot is added to the end of the shot log.";
+    level->slideTitle = "Pointers & Linked List lecture: Inserting a Node at the End";
+    level->slideText = "void InsertAtEnd(Node** ptrToHeadPtr, int newData) {\n"
+                       "    Node* newNode = new Node();\n"
+                       "    newNode->data = newData;\n"
+                       "    newNode->nextPtr = nullptr;\n"
+                       "    if (*ptrToHeadPtr == nullptr) {\n"
+                       "        *ptrToHeadPtr = newNode;\n"
+                       "        return;\n"
+                       "    }\n"
+                       "    Node* curNodePtr = *ptrToHeadPtr;\n"
+                       "    while (curNodePtr->nextPtr != nullptr) {\n"
+                       "        curNodePtr = curNodePtr->nextPtr;\n"
+                       "    }\n"
+                       "    curNodePtr->nextPtr = newNode;\n"
+                       "}\n"
+                       "\n"
+                       "main:   Node* headPtr = nullptr;\n"
+                       "        InsertAtEnd(&headPtr, 10); // Insert 10 at the end";
 
     task = startTask(level, 0, TASK_TYPE, "The list is empty. Type the line that makes newNode the head.",
                      "void InsertAtEnd(Node** ptrToHeadPtr, int newData) {\n"
@@ -151,6 +189,26 @@ void setupListLessons() {
                      "    curNodePtr = curNodePtr->nextPtr;\n"
                      "}";
     level->inGame = "Not used by the game, but it's in the linked list lecture.";
+    level->slideTitle = "Pointers & Linked List lecture: DeleteWithValue";
+    level->slideText = "void DeleteWithValue(Node **ptrToHeadPtr, int value) {\n"
+                       "  if (*ptrToHeadPtr == nullptr) { cout << \"List is empty.\" << endl; return; }\n"
+                       "  Node* curNodePtr = *ptrToHeadPtr;\n"
+                       "  // If the head node itself holds the value to be deleted\n"
+                       "  if (curNodePtr != nullptr && curNodePtr->data == value) {\n"
+                       "    *ptrToHeadPtr = curNodePtr->nextPtr; // Change head to the next node\n"
+                       "    delete curNodePtr;                   // Free memory\n"
+                       "    return;\n"
+                       "  }\n"
+                       "  // Search for the node, keeping track of the previous node\n"
+                       "  Node* prev = nullptr;\n"
+                       "  while (curNodePtr != nullptr && curNodePtr->data != value) {\n"
+                       "    prev = curNodePtr;\n"
+                       "    curNodePtr = curNodePtr->nextPtr;\n"
+                       "  }\n"
+                       "  if (curNodePtr == nullptr) { cout << \"Value not found in the list.\" << endl; return; }\n"
+                       "  prev->nextPtr = curNodePtr->nextPtr;   // Unlink the node from the linked list\n"
+                       "  delete curNodePtr;                     // Free memory\n"
+                       "}";
 
     task = startTask(level, 0, TASK_TYPE, "The head node holds the value. Type the line that changes the head to the next node.",
                      "Node* curNodePtr = *ptrToHeadPtr;\n"
@@ -190,6 +248,21 @@ void setupListLessons() {
                      "    clear();\n"
                      "}";
     level->inGame = "When you start a new game, the shot log is cleared exactly like this.";
+    level->slideTitle = "Pointers & Linked List lecture: the LinkedList class";
+    level->slideText = "// Destructor to clean up memory\n"
+                       "~LinkedList() {\n"
+                       "    clear();\n"
+                       "}\n"
+                       "// Clear the entire list\n"
+                       "void clear() {\n"
+                       "    Node* current = head;\n"
+                       "    while (current != nullptr) {\n"
+                       "        Node* temp = current;\n"
+                       "        current = current->next;\n"
+                       "        delete temp;\n"
+                       "    }\n"
+                       "    head = nullptr;\n"
+                       "}";
 
     task = startTask(level, 0, TASK_ORDER, "Build the loop body of clear(). Two of the lines are wrong, so leave them out.",
                      "void clear() {\n"
@@ -211,6 +284,9 @@ void setupListLessons() {
     setHints(task, "Save the current node before moving on.",
                    "Move to the next node before deleting anything.",
                    "Save, move, then delete the saved node.");
+    task->layout = "1  Node* temp = ...;\n"
+                   "2  current = ...;\n"
+                   "3  delete ...;";
 
     task = startTask(level, 1, TASK_TYPE, "Every node has been deleted. Type the line that marks the list as empty.",
                      "void clear() {\n"
@@ -241,6 +317,11 @@ void setupListLessons() {
                      "    DoublyLinkedNode *nextPointer;\n"
                      "};";
     level->inGame = "The shot log is a doubly linked list, so now you can scroll back through it with the Up and Down arrows.";
+    level->slideTitle = "Lab 2, Part 2";
+    level->slideText = "1. Implement the linkedlist list code from the lecture notes.\n"
+                       "2. Create a new classes called DoublyLinkedList and a DoublyLinkedNode.\n"
+                       "   DoublyLinkedNode has both a prevPointer and nextPointer\n"
+                       "3. Implement and InsertAtBeginning , InsertAtEnd, and InsertAtPosition";
 
     task = startTask(level, 0, TASK_TYPE, "InsertAtEnd: newNode has just been linked after curNodePtr. Point newNode back at curNodePtr.",
                      "while (curNodePtr->nextPointer != nullptr) {\n"
@@ -279,6 +360,17 @@ void setupListLessons() {
                      "newNode->next = head;\n"
                      "head = newNode;";
     level->inGame = "Not used by the game, but it's part of Lab 2.";
+    level->slideTitle = "Lab 2 Part 2; Pointers & Linked List lecture: insertAtBeginning";
+    level->slideText = "Lab 2, Part 2:\n"
+                       "3. Implement and InsertAtBeginning , InsertAtEnd, and InsertAtPosition\n"
+                       "\n"
+                       "The lecture's (singly linked) class version:\n"
+                       "// Insert a node at the beginning of the list\n"
+                       "void insertAtBeginning(int newData) {\n"
+                       "    Node* newNode = new Node(newData);\n"
+                       "    newNode->next = head;\n"
+                       "    head = newNode;\n"
+                       "}";
 
     task = startTask(level, 0, TASK_TYPE, "Type the line that points the new node forward at the old head.",
                      "void DoublyLinkedList::InsertAtBeginning(int newData) {\n"
@@ -322,6 +414,15 @@ void setupListLessons() {
     level->example = "// before:  A <-> C\n"
                      "// after:   A <-> B <-> C";
     level->inGame = "Not used by the game - but with this you've done all of Lab 2. Well done!";
+    level->slideTitle = "Lab 2, Part 2";
+    level->slideText = "3. Implement and InsertAtBeginning , InsertAtEnd, and InsertAtPosition\n"
+                       "\n"
+                       "The lab doesn't give the code. In the middle of a doubly linked list the new\n"
+                       "node goes between curNodePtr and the node after it, so four links change:\n"
+                       "  newNode->prevPointer\n"
+                       "  newNode->nextPointer\n"
+                       "  the next node's prevPointer\n"
+                       "  curNodePtr->nextPointer";
 
     task = startTask(level, 0, TASK_ORDER, "Put the four links in a working order. One line is wrong, so leave it out.",
                      "// curNodePtr is the node just before the position,\n"
@@ -348,6 +449,10 @@ void setupListLessons() {
     setHints(task, "Two links are on newNode, and one on each neighbour.",
                    "curNodePtr->nextPointer still leads to the old next node, so use it before changing it.",
                    "curNodePtr->nextPointer = newNode; must be the very last line.");
+    task->layout = "1  newNode->prevPointer = curNodePtr;\n"
+                   "2  newNode->nextPointer = ...;\n"
+                   "3  curNodePtr->nextPointer->prevPointer = ...;\n"
+                   "4  curNodePtr->nextPointer = ...;";
 
     task = startTask(level, 1, TASK_TYPE, "Type the last link: curNodePtr points forward at the new node.",
                      "// curNodePtr is the node just before the position\n"
@@ -379,6 +484,11 @@ void setupListLessons() {
                      "    if (arr[i] > 10) count++;\n"
                      "}";
     level->inGame = "The game counts how many of your group are left with frequencyCount.";
+    level->slideTitle = "Lab 1, Q13";
+    level->slideText = "// Q13: Count the frequency of a given element in an array.\n"
+                       "int frequencyCount(int size, int arr[], int value) {\n"
+                       "    return 0;\n"
+                       "}";
 
     task = startTask(level, 0, TASK_TYPE, "Type the line inside the loop that adds 1 to count when arr[i] equals value.",
                      "int frequencyCount(int size, int arr[], int value) {\n"
@@ -424,6 +534,11 @@ void setupListLessons() {
                      "    }\n"
                      "}";
     level->inGame = "Before every game, countDuplicates checks the rack. The result is the first line of the shot log.";
+    level->slideTitle = "Lab 1, Q14";
+    level->slideText = "// Q14: Count the total number of duplicate elements in an array.\n"
+                       "int countDuplicates(int size, int arr[]) {\n"
+                       "    return 0;\n"
+                       "}";
 
     task = startTask(level, 0, TASK_TYPE, "Type the if line that adds 1 to count when arr[i] and arr[j] match.",
                      "for (int i = 0; i < size; i++) {\n"
@@ -468,6 +583,11 @@ void setupListLessons() {
                          "swapping if you give it the two addresses.";
     level->example = "// size 5: swap 0 with 4, then 1 with 3 (2 stays put)";
     level->inGame = "Not used by the game - reverse_array (Level 17) does the real work.";
+    level->slideTitle = "Lab 1, Q15";
+    level->slideText = "// Q15: Reverse an array in place using only 1 array.\n"
+                       "void reverse(int size, int arr[]) {\n"
+                       "    return;\n"
+                       "}";
 
     task = startTask(level, 0, TASK_TYPE, "Type the line inside the loop that swaps element i with its partner at the other end, using swap_ints.",
                      "void reverse(int size, int arr[]) {\n"
@@ -510,6 +630,11 @@ void setupListLessons() {
                      "// ... shift everything one place left ...\n"
                      "// ... then put first at the end";
     level->inGame = "Not used by the game - it's Coding Exam 1 practice.";
+    level->slideTitle = "Lab 1, Q16";
+    level->slideText = "// Q16: Left rotate an array by one position, moving the first element to the end.\n"
+                       "int rotateLeft(int size, int arr[]) {\n"
+                       "    return -1;\n"
+                       "}";
 
     task = startTask(level, 0, TASK_TYPE, "Type the line inside the loop that moves each element one place to the left.",
                      "int first = arr[0];\n"
@@ -548,6 +673,13 @@ void setupListLessons() {
                      "    for (int j = i + 1; j < size; j++)\n"
                      "        // is arr[i] + arr[j] the target?";
     level->inGame = "Not used by the game - it's Coding Exam 1 practice.";
+    level->slideTitle = "Lab 1, Q17";
+    level->slideText = "// Q17: Given a flight length and an array of movie lengths, return true if\n"
+                       "// there are exactly two movies whose runtimes sum to the flight length.\n"
+                       "// Users watch exactly two movies and cannot watch the same movie twice.\n"
+                       "bool twoMovies(int flightLength, int movieLengths[], int size) {\n"
+                       "    return false;\n"
+                       "}";
 
     task = startTask(level, 0, TASK_TYPE, "Type the if line that returns true when movie i and movie j add up to flightLength.",
                      "bool twoMovies(int flightLength, int movieLengths[], int size) {\n"
@@ -579,6 +711,9 @@ void setupListLessons() {
     setHints(task, "Try every pair of different movies.",
                    "90 + 60? 90 + 30? ...",
                    "Is any total exactly 120?");
+    task->layout = "Pairs:  90+60 = 150   90+30 = ?   90+45 = ?\n"
+                   "        60+30 = ?    60+45 = ?   30+45 = ?\n"
+                   "Is any pair exactly 120?";
 
     // ---------- Level 52 ----------
     level = startLevel(52, 8, "wordCounter", "wordCount", "Lab 1 Q18");
@@ -588,6 +723,12 @@ void setupListLessons() {
                      "// words start at the 'h' and the 't',\n"
                      "// so there are 2 words";
     level->inGame = "Not used by the game - it's Coding Exam 1 practice.";
+    level->slideTitle = "Lab 1, Q18";
+    level->slideText = "// Q18: Count the number of separate words in an array of chars, where a word\n"
+                       "// is one or more characters in ranges A..Z or a..z separated by spaces.\n"
+                       "int wordCounter(int size, char characters[]) {\n"
+                       "    return 0;\n"
+                       "}";
 
     task = startTask(level, 0, TASK_TYPE, "Type the if line that adds 1 to count when a letter starts a new word.",
                      "int wordCounter(int size, char characters[]) {\n"
@@ -639,6 +780,19 @@ void setupListLessons() {
                      "                   {4, 5, 6} };\n"
                      "// grid[1][0] is 4: row 1, column 0";
     level->inGame = "Not used by the game - it's Coding Exam 1 practice.";
+    level->slideTitle = "Lab 1, Q19";
+    level->slideText = "// Q19: PrintArray\n"
+                       "// Prints the 4x6 array in rows and columns.\n"
+                       "// This is the ONLY function allowed to use printf.\n"
+                       "void PrintArray(int array[4][6])\n"
+                       "{\n"
+                       "}\n"
+                       "\n"
+                       "From the Lab 1 main:\n"
+                       "int array[4][6] = { {0,0,3,1,3,4},\n"
+                       "                    {0,0,2,3,4,3},\n"
+                       "                    {0,0,1,3,3,2},\n"
+                       "                    {0,0,1,1,1,1} };";
 
     task = startTask(level, 0, TASK_TYPE, "Type the line that prints one element, followed by a space.",
                      "void PrintArray(int array[4][6]) {\n"
@@ -684,6 +838,18 @@ void setupListLessons() {
     level->example = "// right of (row, col) is (row, col + 1)\n"
                      "// below (row, col) is (row + 1, col)";
     level->inGame = "Not used by the game - it's Coding Exam 1 practice.";
+    level->slideTitle = "Lab 1, Q20-Q21";
+    level->slideText = "// Q20: ReplaceWithMinusOne\n"
+                       "// Scans the array from position (0,0), moving left-to-right across each row.\n"
+                       "// At each position, checks for a HORIZONTAL line of 3+ identical items first,\n"
+                       "// and if none found, checks for a VERTICAL line of 3+ identical items.\n"
+                       "// The first cluster found is scored by summing its values (1-4), then the\n"
+                       "// cluster is replaced with -1's. 0's and -2's are never part of a cluster.\n"
+                       "\n"
+                       "// Q21: FallDownAndReplace\n"
+                       "// Removes the -1's by making all items above them \"fall down\" into the empty\n"
+                       "// space. New items added at the top of the array are given the value -2, and\n"
+                       "// these will not be part of the next cluster. Works column by column.";
 
     task = startTask(level, 0, TASK_TYPE, "Q20: fill in the check for a horizontal line of 3 the same, starting at (row, col).",
                      "// 0's, -1's and -2's are never part of a cluster\n"

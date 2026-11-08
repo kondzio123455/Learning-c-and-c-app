@@ -135,6 +135,35 @@ void PrintList(Node *headPtr) {
     cout << endl;
 }
 
+// Deletes the first node that holds value (from the lecture notes)
+void DeleteWithValue(Node **ptrToHeadPtr, int value) {
+    if (*ptrToHeadPtr == nullptr) {
+        cout << "List is empty." << endl;
+        return;
+    }
+    Node *curNodePtr = *ptrToHeadPtr;
+
+    // If the head node itself holds the value to be deleted
+    if (curNodePtr != nullptr && curNodePtr->data == value) {
+        *ptrToHeadPtr = curNodePtr->nextPtr;   // Change head to the next node
+        delete curNodePtr;                     // Free memory
+        return;
+    }
+
+    // Search for the node that holds the value, and keep track of the previous node
+    Node *prev = nullptr;
+    while (curNodePtr != nullptr && curNodePtr->data != value) {
+        prev = curNodePtr;
+        curNodePtr = curNodePtr->nextPtr;
+    }
+    if (curNodePtr == nullptr) {
+        cout << "Value not found in the list." << endl;
+        return;
+    }
+    prev->nextPtr = curNodePtr->nextPtr;   // Unlink the node from the linked list
+    delete curNodePtr;                     // Free memory
+}
+
 // ============================================================
 // Part 2: doubly linked list
 // ============================================================

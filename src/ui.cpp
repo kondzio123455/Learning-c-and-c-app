@@ -48,7 +48,8 @@ float lineHeight(float size) {
 // Draws text that wraps onto a new line when it gets too wide, and returns the height used.
 // The font is monospace, so a line can hold exactly width / charWidth characters.
 // A '\n' in the text starts a new line.
-float drawWrapped(const char *text, float x, float y, float width, float size, Color colour) {
+// Wraps text into lines that fit 'width'. Draws it if draw is true; either way returns its height.
+float wrapText(const char *text, float x, float y, float width, float size, Color colour, bool draw) {
     int maxChars = (int)(width / charWidth(size));
     char line[300];
     int lineLength = 0;
@@ -65,7 +66,7 @@ float drawWrapped(const char *text, float x, float y, float width, float size, C
         // Start a new line if the word doesn't fit on this one
         if (lineLength > 0 && lineLength + 1 + wordLength > maxChars) {
             line[lineLength] = '\0';
-            drawText(line, x, lineY, size, colour);
+            if (draw) drawText(line, x, lineY, size, colour);
             lineY += lineHeight(size);
             lineLength = 0;
         }
@@ -84,7 +85,7 @@ float drawWrapped(const char *text, float x, float y, float width, float size, C
         // A '\n' finishes the line
         if (*p == '\n') {
             line[lineLength] = '\0';
-            drawText(line, x, lineY, size, colour);
+            if (draw) drawText(line, x, lineY, size, colour);
             lineY += lineHeight(size);
             lineLength = 0;
             p++;
@@ -95,10 +96,19 @@ float drawWrapped(const char *text, float x, float y, float width, float size, C
 
     if (lineLength > 0) {
         line[lineLength] = '\0';
-        drawText(line, x, lineY, size, colour);
+        if (draw) drawText(line, x, lineY, size, colour);
         lineY += lineHeight(size);
     }
     return lineY - y;
+}
+
+float drawWrapped(const char *text, float x, float y, float width, float size, Color colour) {
+    return wrapText(text, x, y, width, size, colour, true);
+}
+
+// How tall some wrapped text will be, without drawing it
+float wrappedHeight(const char *text, float width, float size) {
+    return wrapText(text, 0, 0, width, size, WHITE, false);
 }
 
 // ============================================================

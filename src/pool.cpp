@@ -195,6 +195,8 @@ void newGame(Game *game) {
     game->waitingPlayer = 1;
     game->tableOpen = true;
     game->isBreak = true;
+    game->potsSinceCall[0] = 0;
+    game->potsSinceCall[1] = 0;
     game->calledBall = -1;
     game->lastPotted = nullptr;
     game->pottedThisShotCount = 0;
@@ -453,6 +455,7 @@ bool wasPottedThisShot(Game *game, int number) {
 // Returns true if the shooter legally potted one of their own balls
 // (the game uses that to unlock the next concept).
 bool endOfShot(Game *game) {
+    int shooterIndex = game->currentPlayer;   // remembered before the turn might pass
     Player *shooter = &game->players[game->currentPlayer];
     Player *other = &game->players[game->waitingPlayer];
     bool scratch = game->balls[0].pocketed;
@@ -496,6 +499,7 @@ bool endOfShot(Game *game) {
 
     // ---------- Give each potted ball to its owner ----------
     bool pottedOwn = false;
+    int ownCount = 0;
     for (int i = 0; i < game->pottedThisShotCount; i++) {
         int number = game->pottedThisShot[i];
         if (number == 8) continue;
@@ -507,6 +511,7 @@ bool endOfShot(Game *game) {
             if (groupOf(number) == shooter->group) {
                 owner = shooter;
                 pottedOwn = true;
+                ownCount++;
             }
             addPoint(&owner->score);   // Level 4
             owner->tray[owner->trayCount] = number;
@@ -553,6 +558,14 @@ bool endOfShot(Game *game) {
     // After a scratch the cue ball goes back on the start line
     if (scratch) {
         respotBall(game, 0, CUE_START_X, CUE_START_Y, false);
+    }
+
+    // You only have to call a ball after every 2 of your own balls (and for the 8).
+    // A called shot starts the count again; the break doesn't count.
+    if (game->calledBall != -1) {
+        game->potsSinceCall[shooterIndex] = 0;
+    } else if (!game->isBreak && !scratch) {
+        game->potsSinceCall[shooterIndex] += ownCount;
     }
 
     game->isBreak = false;
@@ -758,9 +771,9 @@ void drawCueStick(Game *game, float aimX, float aimY, float power, float strike,
     DrawLineEx(tipEnd, tip, 7, Color{ 90, 140, 200, 255 });   // chalked tip
 }
 
-// The aim guide (an upgrade): dots to where the cue ball first hits something, a
-// "ghost ball" where it will touch the object ball, and (later) where that ball goes.
-void drawAimGuide(Game *game, float aimX, float aimY, bool showPath) {
+// The aim line: dots to where the cue ball first hits something. Upgrades add a
+// "ghost ball" where it will touch the object ball, and where that ball will go.
+void drawAimGuide(Game *game, float aimX, float aimY, bool showGhost, bool showPath) {
     Ball *cue = &game->balls[0];
     float dx = aimX - cue->x;
     float dy = aimY - cue->y;
@@ -806,10 +819,10 @@ void drawAimGuide(Game *game, float aimX, float aimY, bool showPath) {
         DrawCircleV(Vector2{ cue->x + dx * d, cue->y + dy * d }, 1.6f, Fade(WHITE, 0.75f));
     }
 
-    // Ghost ball where the cue ball will be at the moment of contact
+    // Upgrade: a ghost ball where the cue ball will be at the moment of contact
     float gx = cue->x + dx * hitDistance;
     float gy = cue->y + dy * hitDistance;
-    DrawCircleLines((int)gx, (int)gy, BALL_RADIUS, Fade(WHITE, 0.8f));
+    if (showGhost) DrawCircleLines((int)gx, (int)gy, BALL_RADIUS, Fade(WHITE, 0.8f));
 
     // Upgrade: where the object ball will go (along the line between the centres)
     if (showPath && hitBall != -1) {

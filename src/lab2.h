@@ -25,6 +25,7 @@ struct Node {
 
 void InsertAtEnd(Node **ptrToHeadPtr, int newData);
 void PrintList(Node *headPtr);
+void DeleteWithValue(Node **ptrToHeadPtr, int value);
 
 // ---------- Part 2: doubly linked list ----------
 // Each node points forwards (nextPointer) and backwards (prevPointer).

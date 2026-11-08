@@ -24,6 +24,23 @@ void setupPointerLessons() {
                      "int *ptr;\n"
                      "ptr = &x;    // ptr now holds the address of x";
     level->inGame = "Under the table, the balls are shown in memory with their addresses. Soon you'll point at them.";
+    level->slideTitle = "Pointers lecture, slides 3, 5 and 7";
+    level->slideText = "Slide 3: Computer Memory Revisited\n"
+                       "- Computers store data in memory slots\n"
+                       "- Each slot has an unique address\n"
+                       "\n"
+                       "Slide 5: Addressing Concept\n"
+                       "- Pointer stores the address of another entity\n"
+                       "- It refers to a memory location\n"
+                       "int i = 5;\n"
+                       "int* ptr; /* declare a pointer variable */\n"
+                       "ptr = &i; /* store address-of i to ptr */\n"
+                       "*ptr = 10; /* refer to contents a that ptr address*/\n"
+                       "\n"
+                       "Slide 7: Twin Operators\n"
+                       "- &: Address-of operator\n"
+                       "  - Get the address of an entity\n"
+                       "  - e.g. ptr = &j;";
 
     task = startTask(level, 0, TASK_TYPE, "Store the address of i in ptr.",
                      "int i = 5;\n"
@@ -35,7 +52,7 @@ void setupPointerLessons() {
     addMistake(task, "int* ptr = &i;", "ptr is already declared on the line above, so don't write its type again.");
     addMistake(task, "&ptr = i;", "&ptr is the address of ptr itself, and you can't assign to it. Which side needs the &?");
     setHints(task, "A pointer stores an address, not a value.",
-                   "One of the twin operators on slide 7 gets the address of a variable.",
+                   "Slide 7 lists the twin operators. The first is &: 'Address-of operator - get the address of an entity'.",
                    "Put that operator in front of i, and store the result in ptr.");
 
     task = startTask(level, 1, TASK_TYPE, "Make ptr point at j, like slide 7.",
@@ -59,6 +76,22 @@ void setupPointerLessons() {
                      "int *ptr = &x;\n"
                      "int y = *ptr;   // y gets the value of x (10)";
     level->inGame = "The game reads your shot power through a pointer: int *powerPtr = &power; (look under the power bar).";
+    level->slideTitle = "Pointers lecture, slides 6 and 8";
+    level->slideText = "Slide 6: What actually ptr is?\n"
+                       "- ptr is a variable storing an address\n"
+                       "- ptr is NOT storing the actual value of i\n"
+                       "int i = 5;\n"
+                       "int* ptr;\n"
+                       "ptr = &i;\n"
+                       "printf(\"i = %d\\n\", i);\n"
+                       "printf(\"*ptr = %d\\n\", *ptr);\n"
+                       "printf(\"ptr = %p\\n\", ptr);\n"
+                       "(the slide's output is left out here, because it answers the trace question)\n"
+                       "\n"
+                       "Slide 8: Twin Operators\n"
+                       "- *: De-reference operator\n"
+                       "  - Refer to the content of the referee\n"
+                       "  - e.g. *ptr = 99;";
 
     task = startTask(level, 0, TASK_TRACE, "This is slide 6. What number does the last line print for *ptr?",
                      "int i = 5;\n"
@@ -72,6 +105,9 @@ void setupPointerLessons() {
     setHints(task, "ptr holds the address of i.",
                    "*ptr means 'the int stored at the address in ptr'.",
                    "So here *ptr is the same thing as i.");
+    task->layout = "Line 3: ptr = &i; so ptr holds the address of i.\n"
+                   "*ptr means: the int stored at that address.\n"
+                   "So *ptr is the same int as i, which is ...";
 
     task = startTask(level, 1, TASK_TYPE, "Use ptr to change j to 99. (Don't write j = 99.)",
                      "int i = 40, j = 33;\n"
@@ -83,7 +119,7 @@ void setupPointerLessons() {
     addMistake(task, "j = 99;", "That works, but the task is to change j through the pointer.");
     addMistake(task, "&ptr = 99;", "& gives an address, and you can't assign to it. Which operator reaches the variable ptr points at?");
     setHints(task, "You want to change the variable that ptr points at.",
-                   "The de-reference operator reaches it (slide 8).",
+                   "Slide 8: '*: De-reference operator - refer to the content of the referee'.",
                    "Put that operator in front of ptr, then = 99;");
 
     // ---------- Level 3: the game's call line ----------
@@ -96,6 +132,17 @@ void setupPointerLessons() {
                      "ptr = &(a[2]);   // ptr points at element 2 (slide 24)";
     level->inGame = "From now on you call a ball before every shot (except the break). Pot the ball you called and you shoot "
                     "again. Your call line stays in its box, so next time you only change the number.";
+    level->slideTitle = "Pointers lecture, slide 24";
+    level->slideText = "Slide 24: Pointer Arithmetic and Array\n"
+                       "float a[4];\n"
+                       "float* ptr;\n"
+                       "ptr = &(a[2]);\n"
+                       "*ptr = 3.14;\n"
+                       "ptr++;\n"
+                       "*ptr = 9.0;\n"
+                       "\n"
+                       "- ptr = &(a[2]); stores the address of element 2 of the array in ptr.\n"
+                       "- In the game, Ball *target = &balls[3]; does the same with the balls array.";
 
     task = startTask(level, 0, TASK_TYPE, "Call the ball you want to pot: make a Ball pointer called target that points at it. "
                      "Hover over a ball to see its number. On an open table any ball except the 8 is allowed.",
@@ -152,6 +199,22 @@ void setupPointerLessons() {
                      "p = &b;    // p now points at b\n"
                      "*p = 6;    // b is 6, a is still 5";
     level->inGame = "Not used by the game, but tracing like this is a classic test question.";
+    level->slideTitle = "Pointers lecture, slides 10-15: An Illustration";
+    level->slideText = "int i = 5, j = 10;\n"
+                       "int* ptr;\n"
+                       "ptr = &i;\n"
+                       "*ptr = 3;\n"
+                       "ptr = &j;\n"
+                       "*ptr = -2;\n"
+                       "\n"
+                       "Data Table on slide 12 (after ptr = &i;):\n"
+                       "Name   Type     Description                  Value\n"
+                       "i      int      integer variable             5\n"
+                       "j      int      integer variable             10\n"
+                       "ptr    int *    integer pointer variable     address of i\n"
+                       "*ptr   int      de-reference of ptr          5\n"
+                       "\n"
+                       "(slides 13-15 fill in the rest of the table, which would give the answers away)";
 
     task = startTask(level, 0, TASK_TRACE, "This is the code from slides 10-15. What is the value of i at the end?",
                      "int i = 5, j = 10;\n"
@@ -168,6 +231,10 @@ void setupPointerLessons() {
     setHints(task, "Make a table with i, j and ptr, and update it after every line.",
                    "*ptr = 3 runs while ptr points at i.",
                    "After ptr = &j; nothing changes i again.");
+    task->layout = "after ptr = &i;    i = 5    j = 10   ptr -> i\n"
+                   "after *ptr = 3;    i = ?    j = 10   ptr -> i\n"
+                   "after ptr = &j;    i = ?    j = 10   ptr -> j\n"
+                   "after *ptr = -2;   (this one changes j)";
 
     task = startTask(level, 1, TASK_TRACE, "Same code from slides 10-15. What is the value of j at the end?",
                      "int i = 5, j = 10;\n"
@@ -183,6 +250,10 @@ void setupPointerLessons() {
     setHints(task, "Make a table with i, j and ptr, and update it after every line.",
                    "ptr = &j; moves the pointer to j.",
                    "The last line writes through ptr, which points at j by then.");
+    task->layout = "after ptr = &i;    i = 5   j = 10   ptr -> i\n"
+                   "after *ptr = 3;    i = 3   j = 10   ptr -> i\n"
+                   "after ptr = &j;    i = 3   j = 10   ptr -> j\n"
+                   "after *ptr = -2;   i = 3   j = ?    ptr -> j";
 
     // ---------- Level 5 ----------
     level = startLevel(5, 1, "Pass by value and by pointer", "pass ptr", "Pointers lecture, slide 9; Pointers & Linked List lecture: Pass-by-Value vs Pass-by-Reference");
@@ -195,6 +266,20 @@ void setupPointerLessons() {
                      "int i = 3;\n"
                      "f(&i);              // i is now 5";
     level->inGame = "Every time you pot one of your balls, the game calls addPoint(&player.score), which works like increment.";
+    level->slideTitle = "Pointers lecture, slide 9: Example: Pass by Pointer";
+    level->slideText = "- Modify behaviour in argument passing\n"
+                       "\n"
+                       "void f(int j)              void f(int *ptr)\n"
+                       "{                          {\n"
+                       "  j = 5;                     *ptr = 5;\n"
+                       "}                          }\n"
+                       "void g()                   void g()\n"
+                       "{                          {\n"
+                       "  int i = 3;                 int i = 3;\n"
+                       "  f(i);                      f(&i);\n"
+                       "}                          }\n"
+                       "\n"
+                       "The slide asks: i = 3?   i = 5?";
 
     task = startTask(level, 0, TASK_TRACE, "Slide 9: this f takes an int, not a pointer. What is i after the call f(i)?",
                      "void f(int j) {\n"
@@ -211,6 +296,9 @@ void setupPointerLessons() {
     setHints(task, "Look at f's parameter: is it an int or an int *?",
                    "With pass by value, the function works on a copy.",
                    "So i keeps the value it had before the call.");
+    task->layout = "f(i) gives f a copy:   inside f, j = 3\n"
+                   "j = 5;                 inside f, j = 5   (only the copy changes)\n"
+                   "back in g:             i = ?";
 
     task = startTask(level, 1, TASK_TYPE, "Finish increment (from the lecture) so it adds 1 to the caller's variable.",
                      "void increment(int *numPtr) {\n"
@@ -240,6 +328,25 @@ void setupPointerLessons() {
                      "int **pptr = &ptr;\n"
                      "**pptr = 4;    // i is now 4";
     level->inGame = "Linked lists use this later: Node **ptrToHeadPtr lets a function change your head pointer.";
+    level->slideTitle = "Pointers lecture, slides 16-21: Double Indirection";
+    level->slideText = "int i = 5, j = 10;\n"
+                       "int *ptr;\n"
+                       "int **pptr;   /* declare a pointer-to-pointer-to-integer variable */\n"
+                       "ptr = &i;\n"
+                       "pptr = &ptr;  /* store address-of ptr to pptr */\n"
+                       "*ptr = 3;\n"
+                       "**pptr = 7;\n"
+                       "ptr = &j;\n"
+                       "**pptr = 9;\n"
+                       "*pptr = &i;\n"
+                       "*ptr = -2;\n"
+                       "\n"
+                       "Data Table on slide 17 (after pptr = &ptr;):\n"
+                       "ptr    int *    integer pointer variable           address of i\n"
+                       "pptr   int **   integer pointer pointer variable   address of ptr\n"
+                       "*pptr  int *    de-reference of pptr               value of ptr (address of i)\n"
+                       "\n"
+                       "(slides 18-20 fill in the rest, and slide 21 is the exercise)";
 
     task = startTask(level, 0, TASK_TRACE, "This is the code from slide 16. What is j at the end?",
                      "int i = 5, j = 10;\n"
@@ -261,6 +368,11 @@ void setupPointerLessons() {
     setHints(task, "Keep a table for i, j, ptr and pptr.",
                    "**pptr means: go to ptr, then to what ptr points at.",
                    "After ptr = &j; the next **pptr = 9 writes into j, and nothing changes j after that.");
+    task->layout = "ptr = &i; pptr = &ptr;   ptr -> i\n"
+                   "*ptr = 3; **pptr = 7;    i = 7\n"
+                   "ptr = &j;                ptr -> j\n"
+                   "**pptr = 9;              j = ?\n"
+                   "*pptr = &i; *ptr = -2;   (these two only change ptr and i)";
 
     task = startTask(level, 1, TASK_TRACE, "This is the exercise on slide 21. What is i at the end?",
                      "int i = 2, j = 8;\n"
@@ -282,6 +394,11 @@ void setupPointerLessons() {
     setHints(task, "Track ptr carefully: it moves twice.",
                    "*pptr = &i; changes ptr, because *pptr IS ptr.",
                    "So the last line writes through a pointer that points at i again.");
+    task->layout = "ptr = &i; pptr = &ptr;   ptr -> i\n"
+                   "*ptr = 7; **pptr = 12;   i = 12\n"
+                   "ptr = &j; **pptr = 34;   j = 34\n"
+                   "*pptr = &i;              ptr -> i again\n"
+                   "*ptr = -25;              i = ?";
 
     // ---------- Level 7 ----------
     level = startLevel(7, 1, "Pointing at nothing: nullptr", "nullptr", "Pointers lecture, slide 39: Pointer to nullptr");
@@ -292,6 +409,17 @@ void setupPointerLessons() {
                      "    cout << *p;        // only safe if p points somewhere\n"
                      "}";
     level->inGame = "lastPotted points at the last ball potted. Until a ball goes down it's nullptr - look under the table.";
+    level->slideTitle = "Pointers lecture, slide 39: Pointer to nullptr";
+    level->slideText = "int *ptr;\n"
+                       "//un-initialised pointer could contain any value\n"
+                       "..\n"
+                       "//set pointer = to nullptr value.\n"
+                       "ptr =nullptr;\n"
+                       "......\n"
+                       "//check if pointer points to anything...\n"
+                       "If (ptr== nullptr )\n"
+                       "{\n"
+                       "}";
 
     task = startTask(level, 0, TASK_TYPE, "Slide 39: set ptr to point at nothing.",
                      "int *ptr;\n"
@@ -331,6 +459,22 @@ void setupPointerLessons() {
                      "swap(&a, &b);   // pass by pointer:   now a=35 b=45\n"
                      "swap(a, b);     // pass by reference: now a=45 b=35";
     level->inGame = "Not used by the game, but slide 41's differences could easily come up in a test.";
+    level->slideTitle = "Pointers lecture, slides 40-41";
+    level->slideText = "void swap(int* x, int* y)\n"
+                       "{\n"
+                       "  int z = *x; *x=*y; *y=z;\n"
+                       "}\n"
+                       "void swap(int &x, int& y)\n"
+                       "{\n"
+                       "  int z = x; x=y; y=z;\n"
+                       "}\n"
+                       "\n"
+                       "Slide 41: Comparison with pass by reference and pass by pointer\n"
+                       "- Very Similar\n"
+                       "- Pass by reference seen as neater code\n"
+                       "- Use pass by reference when not dealing with null values.\n"
+                       "- Generally pass by reference parameter should be a const.\n"
+                       "- Pass by pointer can pass a null pointer, pass by reference cannot.";
 
     task = startTask(level, 0, TASK_TYPE, "Finish the pass-by-reference swap from slide 40.",
                      "void swap(int &x, int &y) {\n"
@@ -358,6 +502,9 @@ void setupPointerLessons() {
     setHints(task, "One of them can hold nullptr.",
                    "A reference is just another name for a variable that already exists.",
                    "So only one of them can be 'nothing'.");
+    task->layout = "int *p = nullptr;   // allowed: a pointer can be nullptr\n"
+                   "int &r = ...;       // a reference must name a real variable\n"
+                   "So the answer is one word: the one that can hold nullptr.";
 
     // =========================================================
     // Chapter 2: Lab 2 swaps
@@ -371,6 +518,17 @@ void setupPointerLessons() {
     level->example = "int x = 5, y = 10;\n"
                      "swap_ints(&x, &y);   // Now x = 10, y = 5";
     level->inGame = "When your turn ends, the game calls swap_ints(&currentPlayer, &waitingPlayer).";
+    level->slideTitle = "Lab 2, Q1: swap_ints";
+    level->slideText = "1. swap_ints\n"
+                       "Description: Swap the values of two integers using pointers.\n"
+                       "Prototype:\n"
+                       "void swap_ints(int *a, int *b);\n"
+                       "Example:\n"
+                       "int x = 5, y = 10;\n"
+                       "swap_ints(&x, &y); // Now x = 10, y = 5\n"
+                       "\n"
+                       "Note: No use of array indexing (arr[i]) in any function -\n"
+                       "use only pointer arithmetic.";
 
     task = startTask(level, 0, TASK_ORDER, "Build the body of swap_ints: click the lines in the order they should run. "
                      "Two of the lines are wrong, so leave them out.",
@@ -389,6 +547,9 @@ void setupPointerLessons() {
     setHints(task, "Save one value first, so it isn't lost.",
                    "Save *a, then copy *b into *a, then use the saved value.",
                    "Start with int temp = *a;");
+    task->layout = "1  int temp = *a;\n"
+                   "2  *a = ...;\n"
+                   "3  *b = ...;";
 
     task = startTask(level, 1, TASK_TYPE, "Exam style: write the whole body of swap_ints from memory, using a variable called temp.",
                      "void swap_ints(int *a, int *b) {\n"
@@ -411,6 +572,14 @@ void setupPointerLessons() {
                      "swap_chars(&a, &b);   // Now a = 'B', b = 'A'";
     level->inGame = "Groups are stored as chars: 'S' for solids and 'T' for stripes. After the first pot, the game calls "
                     "swap_chars if the shooter needs the other group.";
+    level->slideTitle = "Lab 2, Q2: swap_chars";
+    level->slideText = "2. swap_chars\n"
+                       "Description: Swap the values of two characters using pointers.\n"
+                       "Prototype:\n"
+                       "void swap_chars(char *a, char *b);\n"
+                       "Example:\n"
+                       "char a = 'A', b = 'B';\n"
+                       "swap_chars(&a, &b); // Now a = 'B', b = 'A'";
 
     task = startTask(level, 0, TASK_TYPE, "Write the body of swap_chars, using a variable called temp.",
                      "void swap_chars(char *a, char *b) {\n"
@@ -450,6 +619,20 @@ void setupPointerLessons() {
                      "int *p = arr;     // same as &arr[0]\n"
                      "p = p + 1;        // p now points at the 6";
     level->inGame = "The balls are an array too, so soon you'll call a ball with balls + N instead of &balls[N].";
+    level->slideTitle = "Pointers lecture, slides 23 and 33";
+    level->slideText = "Slide 23: Pointer Arithmetic\n"
+                       "- What's ptr + 1?  -> The next memory location!\n"
+                       "- What's ptr - 1?  -> The previous memory location!\n"
+                       "- What's ptr * 2 and ptr / 2?  -> Invalid operations!!!\n"
+                       "\n"
+                       "Slide 33:\n"
+                       "- Type of a is float *\n"
+                       "- a[2] -> *(a + 2)\n"
+                       "  ptr = &(a[2])\n"
+                       "  -> ptr = &(*(a + 2))\n"
+                       "  -> ptr = a + 2\n"
+                       "- a is a memory address constant\n"
+                       "- ptr is a pointer variable";
 
     task = startTask(level, 0, TASK_TYPE, "Slide 33: write ptr = &(a[2]); another way, without & or [ ].",
                      "float a[4];\n"
@@ -476,6 +659,9 @@ void setupPointerLessons() {
     setHints(task, "ptr points at the first element.",
                    "ptr + 3 points three elements further along.",
                    "Count 4 (step 0), 6 (step 1), ...");
+    task->layout = "arr:    4   6   7   8   9\n"
+                   "index:  0   1   2   3   4\n"
+                   "ptr + 3 points at index 3, so *(ptr + 3) is ...";
 
     // ---------- Level 12 ----------
     level = startLevel(12, 3, "Tracing pointer arithmetic", "ptr++", "Pointers lecture, slides 24-32: Pointer Arithmetic and Array");
@@ -488,6 +674,26 @@ void setupPointerLessons() {
                      "p++;           // p -> b[1]\n"
                      "*p = 5;        // b[1] is 5";
     level->inGame = "Not used by the game, but this exact slide is great test practice.";
+    level->slideTitle = "Pointers lecture, slides 24-32: Pointer Arithmetic and Array";
+    level->slideText = "float a[4];\n"
+                       "float* ptr;\n"
+                       "ptr = &(a[2]);\n"
+                       "*ptr = 3.14;\n"
+                       "ptr++;\n"
+                       "*ptr = 9.0;\n"
+                       "ptr = ptr - 3;\n"
+                       "*ptr = 6.0;\n"
+                       "ptr += 2;\n"
+                       "*ptr = 7.0;\n"
+                       "\n"
+                       "Data Table on slide 26 (after *ptr = 3.14;):\n"
+                       "a[0]   float     ?\n"
+                       "a[1]   float     ?\n"
+                       "a[2]   float     3.14\n"
+                       "a[3]   float     ?\n"
+                       "ptr    float *   address of a[2]\n"
+                       "\n"
+                       "(slides 27-32 fill in the rest, which would give the answers away)";
 
     task = startTask(level, 0, TASK_TRACE, "This is the code from slides 24-32. What is a[0] at the end?",
                      "float a[4];\n"
@@ -510,6 +716,11 @@ void setupPointerLessons() {
     setHints(task, "ptr starts at a[2].",
                    "ptr++ goes to a[3], and ptr - 3 goes back to a[0].",
                    "What is written while ptr points at a[0]?");
+    task->layout = "ptr = &(a[2])    a[2] = 3.14\n"
+                   "ptr++            ptr -> a[3]   a[3] = 9.0\n"
+                   "ptr = ptr - 3    ptr -> a[0]\n"
+                   "*ptr = 6.0       a[0] = ?\n"
+                   "ptr += 2         ptr -> a[2]   (7.0 goes there)";
 
     task = startTask(level, 1, TASK_TRACE, "Same code from slides 24-32. What is a[2] at the end?",
                      "float a[4];\n"
@@ -531,6 +742,11 @@ void setupPointerLessons() {
     setHints(task, "a[2] is written to twice.",
                    "After ptr = ptr - 3 (a[0]), ptr += 2 moves back to a[2].",
                    "The last value written to a[2] is the one that stays.");
+    task->layout = "ptr = &(a[2])    a[2] = 3.14\n"
+                   "ptr++            a[3] = 9.0\n"
+                   "ptr = ptr - 3    a[0] = 6.0\n"
+                   "ptr += 2         ptr -> a[?]\n"
+                   "*ptr = 7.0       ...";
 
     // ---------- Level 13 ----------
     level = startLevel(13, 3, "Pointer steps and sizeof", "sizeof", "Pointers lecture, slides 34-35: More Pointer Arithmetic");
@@ -542,6 +758,22 @@ void setupPointerLessons() {
                      "int *p = arr;\n"
                      "// p + 1 is at 2004, p + 2 is at 2008";
     level->inGame = "Your call line changes now: [ ] is locked, so call your ball with pointer arithmetic: Ball *target = balls + N;";
+    level->slideTitle = "Pointers lecture, slides 34-35: More Pointer Arithmetic";
+    level->slideText = "Slide 34:\n"
+                       "- What if a is a double array?\n"
+                       "- A double may occupy more memory slots!\n"
+                       "  - Given double *ptr = a;\n"
+                       "  - What's ptr + 1 then?\n"
+                       "\n"
+                       "Addr  Content        Addr  Content\n"
+                       "1000  a[0]: 37.9     1001  ...\n"
+                       "1004  a[1]: 1.23     1005  ...\n"
+                       "1008  a[2]: 3.14     1009  ...\n"
+                       "\n"
+                       "Slide 35:\n"
+                       "- Arithmetic operators + and - auto-adjust the address offset\n"
+                       "- According to the type of the pointer:\n"
+                       "  1000 + sizeof(double) = 1000 + 4 = 1004";
 
     task = startTask(level, 0, TASK_TRACE, "Slide 35: double a[3] starts at address 1000, and each double takes 4 slots. "
                      "What address does ptr + 1 hold?",
@@ -552,8 +784,11 @@ void setupPointerLessons() {
     addMistake(task, "1001", "+ 1 moves by one whole double, not one slot.");
     addMistake(task, "1008", "That would be ptr + 2.");
     setHints(task, "Pointer arithmetic counts in elements, not slots.",
-                   "One element is sizeof(double) slots: 4 on this slide.",
+                   "Slide 35: '+ and - auto-adjust the address offset, according to the type of the pointer.' A double is 4 slots there.",
                    "1000 + 1 * 4");
+    task->layout = "address of ptr + n  =  1000 + n * (slots per double)\n"
+                   "slots per double on slide 35 = 4\n"
+                   "n = 1";
 
     task = startTask(level, 1, TASK_TRACE, "balls starts at address 1000 and each Ball is 24 bytes. What address does target hold?",
                      "Ball balls[16];              // starts at address 1000\n"
@@ -565,6 +800,9 @@ void setupPointerLessons() {
     setHints(task, "Each step is sizeof(Ball) = 24 bytes.",
                    "14 steps is 14 * 24 bytes.",
                    "1000 + 14 * 24");
+    task->layout = "address of balls + n  =  1000 + n * sizeof(Ball)\n"
+                   "sizeof(Ball) = 24\n"
+                   "n = 14";
 
     // ---------- Level 14 ----------
     level = startLevel(14, 3, "Printing with a pointer", "print ptr", "Pointers lecture, slide 36 exercise; Lab 2 sample main");
@@ -577,6 +815,17 @@ void setupPointerLessons() {
                      "    std::cout << *(arr + i) << \" \";\n"
                      "}";
     level->inGame = "Not used by the game, but slide 36 is one of the lecture's exercises.";
+    level->slideTitle = "Pointers lecture, slide 36; Lab 2 sample main";
+    level->slideText = "Slide 36 - Exercise:\n"
+                       "- Write code to output the 5 integers in an array using pointer arithmetic.\n"
+                       "int arr[] = {4,6,7,8,9};\n"
+                       "int* ptr= arr;\n"
+                       "int len=5;\n"
+                       "\n"
+                       "Lab 2 sample main:\n"
+                       "for(int i = 0; i < 5; i++) {\n"
+                       "    std::cout << *(arr + i) << \" \";\n"
+                       "}";
 
     task = startTask(level, 0, TASK_TYPE, "Slide 36 exercise: print the 5 integers using pointer arithmetic. Fill in what to print.",
                      "int arr[] = {4, 6, 7, 8, 9};\n"
@@ -622,6 +871,23 @@ void setupPointerLessons() {
                      "total += *(arr + 0);   // add element 0\n"
                      "total += *(arr + 1);   // add element 1";
     level->inGame = "At the end of a game, the results screen totals each player's potted ball numbers with sum_array.";
+    level->slideTitle = "Lab 2 Q9; Pointers lecture, slides 37-38";
+    level->slideText = "Lab 2, 9. sum_array\n"
+                       "Description: Compute the sum of all elements in an integer array using pointers.\n"
+                       "Prototype: int sum_array(int *arr, int size);\n"
+                       "Example:   int arr[4] = {1, 2, 3, 4};\n"
+                       "           int sum = sum_array(arr, 4); // sum = 10\n"
+                       "\n"
+                       "Slide 37 - Exercise: write a function called int sum(int* ptr, int numValues)\n"
+                       "that uses pointer arithmetic to return the sum of numValues number of values.\n"
+                       "\n"
+                       "Slide 38 - Exercise: write code that adds the array elements until it reaches a 0.\n"
+                       "int a[]={4,6,7,8,9,0};\n"
+                       "int sum=0;\n"
+                       "for(int *ptr=a;;....)\n"
+                       "{\n"
+                       "  sum +=*ptr;\n"
+                       "}";
 
     task = startTask(level, 0, TASK_TYPE, "Type the line inside the loop that adds element i onto sum, without [ ].",
                      "int sum_array(int *arr, int size) {\n"
@@ -666,6 +932,14 @@ void setupPointerLessons() {
                      "int smallest = *arr;\n"
                      "if (*(arr + 1) < smallest) smallest = *(arr + 1);";
     level->inGame = "Under the table you can now see find_max: the highest-numbered ball still on the table.";
+    level->slideTitle = "Lab 2, Q3: find_max";
+    level->slideText = "3. find_max\n"
+                       "Description: Find the maximum value in an integer array using pointers.\n"
+                       "Prototype:\n"
+                       "int find_max(int *arr, int size);\n"
+                       "Example:\n"
+                       "int arr[5] = {3, 9, 2, 8, 5};\n"
+                       "int max = find_max(arr, 5); // max = 9";
 
     task = startTask(level, 0, TASK_TYPE, "Type the if line that updates max when element i is bigger.",
                      "int find_max(int *arr, int size) {\n"
@@ -712,6 +986,14 @@ void setupPointerLessons() {
                      "int *end = arr + size - 1;   // the last element\n"
                      "// swap, then move both towards the middle";
     level->inGame = "The game uses reverse_array to show your potted balls newest first.";
+    level->slideTitle = "Lab 2, Q4: reverse_array";
+    level->slideText = "4. reverse_array\n"
+                       "Description: Reverse the contents of an integer array in-place using pointers.\n"
+                       "Prototype:\n"
+                       "void reverse_array(int *arr, int size);\n"
+                       "Example:\n"
+                       "int arr[5] = {1, 2, 3, 4, 5};\n"
+                       "reverse_array(arr, 5); // arr = {5, 4, 3, 2, 1}";
 
     task = startTask(level, 0, TASK_ORDER, "Build the loop body of reverse_array. Two of the lines are wrong, so leave them out.",
                      "void reverse_array(int *arr, int size) {\n"
@@ -733,6 +1015,9 @@ void setupPointerLessons() {
     setHints(task, "Swap first, then move.",
                    "start moves forward and end moves backward.",
                    "start and end are already pointers, so swap_ints can take them as they are.");
+    task->layout = "1  swap_ints(..., ...);\n"
+                   "2  start...;\n"
+                   "3  end...;";
 
     task = startTask(level, 1, TASK_TYPE, "Type the line that makes end point at the last element.",
                      "void reverse_array(int *arr, int size) {\n"
@@ -767,6 +1052,15 @@ void setupPointerLessons() {
                      "char *p = word;      // p points at 'H'\n"
                      "p++;                 // now p points at 'i'";
     level->inGame = "Every letter in this font is the same width, so the game centres player names using strlen_ptr.";
+    level->slideTitle = "Lab 2, Q5: strlen_ptr";
+    level->slideText = "5. strlen_ptr\n"
+                       "Description: Implement a function that calculates the length of a string\n"
+                       "(null-terminated character array) using pointers.\n"
+                       "Prototype:\n"
+                       "int strlen_ptr(char *str);\n"
+                       "Example:\n"
+                       "char str[] = \"Hello\";\n"
+                       "int length = strlen_ptr(str); // length = 5";
 
     task = startTask(level, 0, TASK_TYPE, "Type the while line that keeps going until str reaches the '\\0' at the end.",
                      "int strlen_ptr(char *str) {\n"
@@ -818,6 +1112,16 @@ void setupPointerLessons() {
                      "    count++;\n"
                      "}";
     level->inGame = "Not used by the game, but it's Lab 2 Q6.";
+    level->slideTitle = "Lab 2, Q6: count_vowels";
+    level->slideText = "6. count_vowels\n"
+                       "Description: Count the number of vowels in a string using pointers.\n"
+                       "Prototype:\n"
+                       "int count_vowels(char *str);\n"
+                       "Example:\n"
+                       "char str[] = \"OpenAI\";\n"
+                       "int vowels = count_vowels(str); // vowels = 3 ('O', 'e', 'A')\n"
+                       "\n"
+                       "(Careful: the sheet missed the I at the end.)";
 
     task = startTask(level, 0, TASK_TYPE, "Type the if line that adds 1 to count when *str is a small vowel. Check them in the order a, e, i, o, u.",
                      "int count_vowels(char *str) {\n"
@@ -847,6 +1151,9 @@ void setupPointerLessons() {
     setHints(task, "Go letter by letter: O, p, e, n, A, I.",
                    "Capital vowels count as well.",
                    "The sheet forgot the I at the end.");
+    task->layout = "O    p    e    n    A    I\n"
+                   "yes  no   yes  no   ?    ?\n"
+                   "Add up the yeses.";
 
     // ---------- Level 20 ----------
     level = startLevel(20, 4, "copy_string", "copy_str", "Lab 2 Q7");
@@ -857,6 +1164,16 @@ void setupPointerLessons() {
                      "char *p = word;\n"
                      "*p = 'b';            // word is now \"bat\"";
     level->inGame = "When someone wins, the game starts the win message by copying their name with copy_string.";
+    level->slideTitle = "Lab 2, Q7: copy_string";
+    level->slideText = "7. copy_string\n"
+                       "Description: Copy the contents of one string to another using pointers\n"
+                       "(you may assume the destination has enough space).\n"
+                       "Prototype:\n"
+                       "void copy_string(char *dest, char *src);\n"
+                       "Example:\n"
+                       "char src[] = \"Hello\";\n"
+                       "char dest[10];\n"
+                       "copy_string(dest, src); // dest = \"Hello\"";
 
     task = startTask(level, 0, TASK_TYPE, "Type the line inside the loop that copies one character from src to dest.",
                      "void copy_string(char *dest, char *src) {\n"
@@ -902,6 +1219,16 @@ void setupPointerLessons() {
                      "// 1. move dest to the '\\0' after \"Hello, \"\n"
                      "// 2. copy \"World!\" there";
     level->inGame = "The game adds \" wins!\" to the winner's name with concat_strings.";
+    level->slideTitle = "Lab 2, Q8: concat_strings";
+    level->slideText = "8. concat_strings\n"
+                       "Description: Concatenate two strings using pointers\n"
+                       "(you may assume the destination has enough space).\n"
+                       "Prototype:\n"
+                       "void concat_strings(char *dest, char *src);\n"
+                       "Example:\n"
+                       "char dest[20] = \"Hello, \";\n"
+                       "char src[] = \"World!\";\n"
+                       "concat_strings(dest, src); // dest = \"Hello, World!\"";
 
     task = startTask(level, 0, TASK_TYPE, "Type the while line that moves dest along to the end of its string.",
                      "void concat_strings(char *dest, char *src) {\n"
@@ -941,6 +1268,17 @@ void setupPointerLessons() {
     level->example = "'c' - 'c'   // is 0: the same char\n"
                      "'d' - 'c'   // is 1: d comes after c";
     level->inGame = "When you click Run, the game's answer checker compares your answer with the right ones using compare_strings.";
+    level->slideTitle = "Lab 2, Q10: compare_strings";
+    level->slideText = "10. compare_strings\n"
+                       "Description: Compare two strings lexicographically using pointers. Return 0 if\n"
+                       "they are equal, a negative value if the first string is lexicographically\n"
+                       "smaller, and a positive value if the first string is larger.\n"
+                       "Prototype:\n"
+                       "int compare_strings(char *str1, char *str2);\n"
+                       "Example:\n"
+                       "char str1[] = \"apple\";\n"
+                       "char str2[] = \"banana\";\n"
+                       "int cmp = compare_strings(str1, str2); // cmp < 0 since \"apple\" < \"banana\"";
 
     task = startTask(level, 0, TASK_TYPE, "Type the return line: the difference between the two current characters.",
                      "int compare_strings(char *str1, char *str2) {\n"
@@ -968,4 +1306,8 @@ void setupPointerLessons() {
     setHints(task, "The loop stops straight away: 'a' and 'b' differ.",
                    "It returns *str1 - *str2.",
                    "What is 'a' - 'b'?");
+    task->layout = "str1:  a  p  p  l  e\n"
+                   "str2:  b  a  n  a  n  a\n"
+                   "They differ straight away, so it returns 'a' - 'b'.\n"
+                   "'a' is 97 and 'b' is 98.";
 }

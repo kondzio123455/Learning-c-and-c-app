@@ -6,11 +6,12 @@
 const int EDITOR_MAX_TEXT = 400;
 const float CODE_SIZE = 16;          // font size of code
 
-// A box the player types code into.
-// To keep it simple, the cursor is always at the end of the text.
+// A box the player types code into
 struct CodeBox {
     char text[EDITOR_MAX_TEXT];
     int length;
+    int cursor;                  // where the next character goes (0 = before the first one)
+    float textX, textY;          // where the text starts on screen (for clicking)
     Rectangle area;              // where it is on the screen
     int maxLines;                // 1 for the call line, more for answers
     bool focused;                // true when key presses go to this box
@@ -20,6 +21,7 @@ struct CodeBox {
 void setupCodeBox(CodeBox *box, int maxLines, const char *placeholder);
 void clearCodeBox(CodeBox *box);
 void updateCodeBox(CodeBox *box);                      // reads the keyboard if focused
+void placeCursorAt(CodeBox *box, Vector2 mouse);       // puts the cursor where you clicked
 void drawCodeBox(CodeBox *box, int highlightLine);     // highlightLine = -1 for none
 float drawCode(const char *code, float x, float y, float size, float width);   // syntax-coloured code, returns height
 float drawNumberedCode(const char *code, float x, float y, float size);         // the same, with line numbers

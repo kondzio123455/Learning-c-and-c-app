@@ -1,6 +1,7 @@
 #include "questions.h"
 #include "lab2.h"
 #include <cstdio>
+#include <cstring>
 
 // levels[1] to levels[54]. levels[0] is not used, so level n is levels[n].
 Level levels[LEVEL_COUNT + 1];
@@ -98,10 +99,99 @@ void addTile(Task *task, const char *line) {
     }
 }
 
+// Words that stay in a layout (everything else that's a name or number becomes ___)
+const char *layoutKeywords[] = { "int", "char", "bool", "float", "double", "void", "return", "if", "while",
+                                 "for", "new", "delete", "nullptr", "NULL", "true", "false", "this", "Ball",
+                                 "Node", "Point", "DoublyLinkedNode", "sizeof", "struct", "cout", "endl" };
+const int LAYOUT_KEYWORD_COUNT = 25;
+
+bool isNameChar(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+// Turns an answer into its "shape" for the last hint:
+//   ptr = &i;                          ->  ___ = &___;
+//   int temp = *a; *a = *b; *b = temp; ->  int ___ = *___;  *___ = *___;  *___ = ___;
+// Names and numbers become ___, but keywords, symbols and function names stay.
+void makeLayout(const char *answer, char *out, int size) {
+    int length = 0;
+    int brackets = 0;   // inside ( ) a ; doesn't start a new line (like in a for loop)
+    const char *p = answer;
+
+    while (*p != '\0' && length < size - 6) {
+        if (isNameChar(*p)) {
+            // Read the whole word or number
+            char word[60];
+            int w = 0;
+            while (isNameChar(*p) && w < 59) {
+                word[w] = *p;
+                w++;
+                p++;
+            }
+            word[w] = '\0';
+
+            // Keep it if it's a keyword, or a function name (followed by a bracket)
+            const char *after = p;
+            while (*after == ' ') after++;
+            bool keep = *after == '(';
+            for (int k = 0; k < LAYOUT_KEYWORD_COUNT; k++) {
+                if (strcmp(word, layoutKeywords[k]) == 0) keep = true;   // strcmp gives 0 when they match
+            }
+
+            const char *piece = "___";
+            if (keep) piece = word;
+            while (*piece != '\0' && length < size - 6) {
+                out[length] = *piece;
+                length++;
+                piece++;
+            }
+        } else if (*p == '\'') {
+            // A char like 'a' or '\0' stays as it is
+            do {
+                out[length] = *p;
+                length++;
+                p++;
+            } while (*p != '\0' && *p != '\'' && length < size - 6);
+            if (*p == '\'') {
+                out[length] = *p;
+                length++;
+                p++;
+            }
+        } else {
+            if (*p == '(') brackets++;
+            if (*p == ')') brackets--;
+            out[length] = *p;
+            length++;
+            // Each statement goes on its own line
+            if (*p == ';' && brackets == 0 && *(p + 1) == ' ') {
+                out[length] = '\n';
+                length++;
+                p++;
+            }
+            p++;
+        }
+    }
+    out[length] = '\0';
+}
+
+// Storage for the layouts made from the answers (two tasks per level)
+char autoLayouts[LEVEL_COUNT + 1][2][300];
+
 void setupLevels() {
     setupPointerLessons();
     setupMemoryLessons();
     setupListLessons();
+
+    // Typed tasks without a hand-written layout get one made from their answer
+    for (int n = 1; n <= LEVEL_COUNT; n++) {
+        for (int v = 0; v < 2; v++) {
+            Task *task = &levels[n].tasks[v];
+            if (task->layout == nullptr && task->answers[0] != nullptr) {
+                makeLayout(task->answers[0], autoLayouts[n][v], 300);
+                task->layout = autoLayouts[n][v];
+            }
+        }
+    }
 }
 
 // ============================================================

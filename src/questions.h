@@ -35,7 +35,9 @@ struct Task {
     const char *answers[8];    // accepted answers (spaces don't matter, # means any number)
     Mistake mistakes[4];
     const char *hints[3];      // shown one at a time, only when the player asks
+    const char *layout;        // the last hint: the shape of the answer, or a partly done trace
     const char *tiles[6];      // ORDER only: the lines to choose from (some are wrong)
+    const char *note;          // made-up practice questions: a learner note shown above the task
 };
 
 struct Level {
@@ -46,6 +48,8 @@ struct Level {
     const char *explanation;
     const char *example;
     const char *inGame;        // how the game uses it
+    const char *slideTitle;    // which slides the Slide button shows
+    const char *slideText;     // what those slides say (so you don't have to open the PDF)
     bool noIndexing;           // Lab 2 rule: [ ] is not allowed in answers
     Task tasks[2];             // two versions, so repeats aren't identical
 };
@@ -64,6 +68,7 @@ void addAnswer(Task *task, const char *answer);
 void addMistake(Task *task, const char *answer, const char *why);
 void setHints(Task *task, const char *hint1, const char *hint2, const char *hint3);
 void addTile(Task *task, const char *line);
+void makeLayout(const char *answer, char *out, int size);   // turns an answer into its shape
 
 void setupLevels();
 void setupPointerLessons();      // lessons_pointers.cpp: Chapters 1 to 4

@@ -11,12 +11,15 @@ void setupCodeBox(CodeBox *box, int maxLines, const char *placeholder) {
     box->placeholder = placeholder;
     box->focused = false;
     box->area = Rectangle{ 0, 0, 0, 0 };
+    box->textX = 0;
+    box->textY = 0;
     clearCodeBox(box);
 }
 
 void clearCodeBox(CodeBox *box) {
     box->text[0] = '\0';
     box->length = 0;
+    box->cursor = 0;
 }
 
 int countLines(const char *text) {
@@ -28,35 +31,121 @@ int countLines(const char *text) {
     return lines;
 }
 
-void addChar(CodeBox *box, char c) {
-    if (box->length < EDITOR_MAX_TEXT - 1) {
-        box->text[box->length] = c;
-        box->length++;
-        box->text[box->length] = '\0';
+// Puts a character in at the cursor, moving the rest of the text along one place
+void insertChar(CodeBox *box, char c) {
+    if (box->length >= EDITOR_MAX_TEXT - 1) return;
+    for (int i = box->length; i > box->cursor; i--) {
+        box->text[i] = box->text[i - 1];
     }
+    box->text[box->cursor] = c;
+    box->length++;
+    box->cursor++;
+    box->text[box->length] = '\0';
+}
+
+// Removes the character at position 'at', moving the rest of the text back one place
+void removeChar(CodeBox *box, int at) {
+    if (at < 0 || at >= box->length) return;
+    for (int i = at; i < box->length; i++) {
+        box->text[i] = box->text[i + 1];   // this also moves the '\0' back
+    }
+    box->length--;
+}
+
+// Where the line that contains 'position' starts
+int lineStart(CodeBox *box, int position) {
+    while (position > 0 && box->text[position - 1] != '\n') position--;
+    return position;
+}
+
+// Where the line that contains 'position' ends (at its '\n', or the end of the text)
+int lineEnd(CodeBox *box, int position) {
+    while (position < box->length && box->text[position] != '\n') position++;
+    return position;
+}
+
+// Up and Down keep the same column if the other line is long enough
+void moveUpOrDown(CodeBox *box, bool up) {
+    int start = lineStart(box, box->cursor);
+    int column = box->cursor - start;
+    int newStart;
+    if (up) {
+        if (start == 0) return;                  // already on the first line
+        newStart = lineStart(box, start - 1);
+    } else {
+        int end = lineEnd(box, box->cursor);
+        if (end >= box->length) return;          // already on the last line
+        newStart = end + 1;
+    }
+    box->cursor = newStart + column;
+    int newEnd = lineEnd(box, newStart);
+    if (box->cursor > newEnd) box->cursor = newEnd;   // a shorter line: go to its end
+}
+
+// Every character is the same width, so the click's column is just x / charWidth
+void placeCursorAt(CodeBox *box, Vector2 mouse) {
+    int line = (int)((mouse.y - box->textY) / lineHeight(CODE_SIZE));
+    int column = (int)((mouse.x - box->textX) / charWidth(CODE_SIZE) + 0.5f);
+    if (line < 0) line = 0;
+    if (column < 0) column = 0;
+
+    // Walk down to the start of that line, then along it
+    int position = 0;
+    for (int l = 0; l < line && position < box->length; l++) {
+        position = lineEnd(box, position);
+        if (position < box->length) position++;   // step past the '\n'
+    }
+    int end = lineEnd(box, position);
+    box->cursor = position + column;
+    if (box->cursor > end) box->cursor = end;
+}
+
+// True when a key is pressed, and again and again while it's held down
+bool keyPressed(int key) {
+    return IsKeyPressed(key) || IsKeyPressedRepeat(key);
 }
 
 void updateCodeBox(CodeBox *box) {
     if (!box->focused) return;
+    if (box->cursor > box->length) box->cursor = box->length;   // in case the text was changed
 
     // Typed characters (GetCharPressed handles Shift for us)
     int key = GetCharPressed();
     while (key > 0) {
-        if (key >= 32 && key <= 126) addChar(box, (char)key);
+        if (key >= 32 && key <= 126) insertChar(box, (char)key);
         key = GetCharPressed();
     }
 
     // Enter starts a new line (if the box has room for one)
-    if (IsKeyPressed(KEY_ENTER) || IsKeyPressedRepeat(KEY_ENTER)) {
-        if (countLines(box->text) < box->maxLines) addChar(box, '\n');
-    }
+    if (keyPressed(KEY_ENTER) && countLines(box->text) < box->maxLines) insertChar(box, '\n');
 
-    // Backspace deletes the last character
-    if (IsKeyPressed(KEY_BACKSPACE) || IsKeyPressedRepeat(KEY_BACKSPACE)) {
-        if (box->length > 0) {
-            box->length--;
-            box->text[box->length] = '\0';
-        }
+    // Backspace deletes the character before the cursor, Delete the one after it
+    if (keyPressed(KEY_BACKSPACE) && box->cursor > 0) {
+        box->cursor--;
+        removeChar(box, box->cursor);
+    }
+    if (keyPressed(KEY_DELETE)) removeChar(box, box->cursor);
+
+    // Arrow keys move the cursor. Cmd (or Ctrl) + Left/Right, Home and End
+    // jump to the start or end of the line.
+    bool jump = IsKeyDown(KEY_LEFT_SUPER) || IsKeyDown(KEY_RIGHT_SUPER) ||
+                IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
+    if (keyPressed(KEY_LEFT)) {
+        if (jump) box->cursor = lineStart(box, box->cursor);
+        else if (box->cursor > 0) box->cursor--;
+    }
+    if (keyPressed(KEY_RIGHT)) {
+        if (jump) box->cursor = lineEnd(box, box->cursor);
+        else if (box->cursor < box->length) box->cursor++;
+    }
+    if (keyPressed(KEY_UP)) moveUpOrDown(box, true);
+    if (keyPressed(KEY_DOWN)) moveUpOrDown(box, false);
+    if (keyPressed(KEY_HOME)) box->cursor = lineStart(box, box->cursor);
+    if (keyPressed(KEY_END)) box->cursor = lineEnd(box, box->cursor);
+
+    // Clicking inside the box puts the cursor where you clicked
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(GetMousePosition(), box->area)) {
+        placeCursorAt(box, GetMousePosition());
     }
 }
 
@@ -216,14 +305,25 @@ void drawCodeBox(CodeBox *box, int highlightLine) {
         drawCode(box->text, x, y, size, area.width - 20);
     }
 
-    // Blinking cursor at the end of the text
+    box->textX = x;   // remembered for placing the cursor with the mouse
+    box->textY = y;
+
+    // Blinking cursor: count the lines before it, and the characters since its line started
     if (box->focused && ((int)(GetTime() * 2) % 2 == 0)) {
-        int lines = countLines(box->text);
-        const char *lastLine = strrchr(box->text, '\n');
-        if (lastLine == nullptr) lastLine = box->text;
-        else lastLine++;
-        float cursorX = x + strlen(lastLine) * charWidth(size);
-        float cursorY = y + (lines - 1) * lineHeight(size);
+        int cursor = box->cursor;
+        if (cursor > box->length) cursor = box->length;
+        int line = 0;
+        int column = 0;
+        for (int i = 0; i < cursor; i++) {
+            if (box->text[i] == '\n') {
+                line++;
+                column = 0;
+            } else {
+                column++;
+            }
+        }
+        float cursorX = x + column * charWidth(size);
+        float cursorY = y + line * lineHeight(size);
         DrawRectangle((int)cursorX, (int)cursorY, 2, (int)size + 2, COLOUR_ACCENT);
     }
 }

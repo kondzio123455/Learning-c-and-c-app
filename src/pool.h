@@ -61,6 +61,7 @@ struct Game {
     bool tableOpen;           // true until the groups are decided
     bool isBreak;             // true for the first shot of the game
     int calledBall;           // the ball target points at this shot, or -1
+    int potsSinceCall[2];     // each player's own balls potted since they last called one
     Ball *lastPotted;         // the last object ball potted, or nullptr
     int pottedThisShot[BALL_COUNT];   // object balls that went down this shot
     int pottedThisShotCount;
@@ -106,6 +107,6 @@ void drawBallRolling(int number, float x, float y, float r, float rollAngle, flo
 void drawBalls(Game *game);
 void drawTargetRing(Game *game);
 void drawCueStick(Game *game, float aimX, float aimY, float power, float strike, bool golden);
-void drawAimGuide(Game *game, float aimX, float aimY, bool showPath);
+void drawAimGuide(Game *game, float aimX, float aimY, bool showGhost, bool showPath);
 
 #endif

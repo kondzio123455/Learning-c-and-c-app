@@ -24,6 +24,8 @@ void setupApp(App *app) {
     app->solved = false;
     app->hintsShown = 0;
     app->chosenCount = 0;
+    app->usingMadeUp = false;
+    app->showSlide = false;
 
     setupCodeBox(&app->answerBox, 4, "Click here and type your code...");
     setupCodeBox(&app->callBox, 1, "Ball *target = &balls[...];");
@@ -129,7 +131,7 @@ void menuScreen(App *app) {
 
 void codexScreen(App *app) {
     ClearBackground(COLOUR_BG);
-    if (IsKeyPressed(KEY_ESCAPE)) app->screen = SCREEN_MENU;
+    if (IsKeyPressed(KEY_ESCAPE) && !app->showSlide) app->screen = SCREEN_MENU;
 
     drawBold("Lessons", 30, 18, 34, COLOUR_ACCENT);
     drawText("Every concept you've reached. Click one to read it, then practise it.", 30, 60, 16, COLOUR_MUTED);
@@ -171,8 +173,13 @@ void codexScreen(App *app) {
     drawBold(level->title, x, 120, 28, COLOUR_TEXT);
     drawLessonContent(level, x, 162, SCREEN_WIDTH - x - 40);
 
-    if (button(Rectangle{ x - 20, SCREEN_HEIGHT - 56.0f, 220, 40 }, "Practise this >")) startPractice(app, app->codexLevel);
-    if (button(Rectangle{ SCREEN_WIDTH - 170.0f, SCREEN_HEIGHT - 56.0f, 150, 40 }, "Back")) app->screen = SCREEN_MENU;
+    if (!app->showSlide) {
+        if (button(Rectangle{ x - 20, SCREEN_HEIGHT - 56.0f, 220, 40 }, "Practise this >")) startPractice(app, app->codexLevel);
+        if (button(Rectangle{ x + 215, SCREEN_HEIGHT - 56.0f, 190, 40 }, "Show the slide")) app->showSlide = true;
+        if (button(Rectangle{ SCREEN_WIDTH - 170.0f, SCREEN_HEIGHT - 56.0f, 150, 40 }, "Back")) app->screen = SCREEN_MENU;
+    } else {
+        drawSlideOverlay(app);
+    }
 }
 
 // ============================================================
@@ -240,7 +247,7 @@ void progressScreen(App *app) {
     // Upgrades, like the unlocks in The Farmer Was Replaced
     float upY = SCREEN_HEIGHT - 104.0f;
     drawBold("Upgrades:", 30, upY, 15, COLOUR_TEXT);
-    const char *names[3] = { "Aim guide (finish Ch 1)", "Ball path (finish Ch 3)", "Golden cue (finish Ch 7)" };
+    const char *names[3] = { "Ghost ball (finish Ch 1)", "Ball path (finish Ch 3)", "Golden cue (finish Ch 7)" };
     int needs[3] = { AIM_GUIDE_LEVEL, BALL_PATH_LEVEL, GOLD_CUE_LEVEL };
     for (int i = 0; i < 3; i++) {
         bool unlocked = app->levelsDone >= needs[i];
