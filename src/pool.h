@@ -83,7 +83,7 @@ struct Game {
 };
 
 // ---------- Setting up and rules ----------
-void newGame(Game *game);
+void newGame(Game *game, const char *name1, const char *name2);
 void addPoint(int *score);                           // Level 4
 int addressOf(int ballNumber);
 char groupOf(int ballNumber);                        // 'S', 'T', '8', or 'C' for the cue ball

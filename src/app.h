@@ -15,6 +15,7 @@ enum Screen { SCREEN_MENU, SCREEN_PLAY, SCREEN_CODEX, SCREEN_PROGRESS, SCREEN_PR
 
 // What the game screen is doing right now
 enum Phase {
+    PHASE_WELCOME,     // "welcome back": offers a Rewind before carrying on
     PHASE_LESSON,      // reading about a concept
     PHASE_CODE,        // answering the question for this shot
     PHASE_RUNNING,     // watching the code run, line by line
@@ -34,20 +35,22 @@ struct App {
     Game game;
     bool gameInProgress;        // a game has started and isn't over yet
 
-    // ---------- Progress (saved in progress.txt) ----------
-    int levelsDone;
-    int stars[LEVEL_COUNT + 1]; // best stars for each level: 3 = no hints used
+    // ---------- Players (each with their own saved progress) ----------
+    Profile profiles[MAX_PROFILES];   // everyone who has played on this computer
+    int profileCount;
+    Profile *playerProfile[2];  // who Player 1 and Player 2 are (both can point at the same profile)
+    Profile *learner;           // whose progress the questions use right now: the shooter, in a game
 
     // ---------- The current question ----------
-    bool lessonShown;           // has the current level's lesson been shown yet?
-    int askCount;               // how many times the current level has been asked
     int questionLevel;          // the level being asked
     int version;                // which version of its task: 0 or 1
     bool reviewMode;            // every level is done: questions come from earlier levels
     bool callNeeded;            // does the player have to call a ball this shot?
     bool practising;            // Practice screen: questions without the pool table
     bool solved;                // Practice screen: this question has been answered
-    int hintsShown;             // how many hints the player has asked for (0 to 3)
+    int hintsShown;             // how many hints the player has asked for (0 to 4)
+    float taskScroll;           // how far a long question is scrolled (mouse wheel)
+    float viewTop, viewBottom;  // the visible part of the question area (for clicks)
     int chosen[6];              // ORDER tasks: the tiles clicked so far, in order
     int chosenCount;
     MadeUpQuestion madeUp;      // a new question in the lecturer's style (practice.cpp)
@@ -73,6 +76,20 @@ struct App {
     char bannerTitle[80];
     char bannerText[120];
 
+    // ---------- Welcome back, and Rewind ----------
+    Phase afterWelcome;         // where to go after the welcome panel
+    bool showRewind;            // the Rewind list of levels is open
+    bool rewinding;             // going over an earlier level in the middle of a game
+    bool shotSaved;             // the shot's question is saved, to come back to
+    int savedLevel, savedVersion;
+    bool savedMadeUp, savedCallNeeded;
+    Phase savedPhase;
+
+    // ---------- Choosing players (main menu) ----------
+    int pickingSlot;            // -1 = not choosing, 0 = Player 1, 1 = Player 2
+    CodeBox nameBox;            // where a new player types their name
+    int confirmDelete;          // which player's Delete was clicked once (-1 = none)
+
     // ---------- Other screens ----------
     int codexLevel;             // the level shown in the codex
     bool confirmReset;          // reset progress needs a second click
@@ -93,6 +110,10 @@ void startPractice(App *app, int level);
 void practiceScreen(App *app);
 float drawLessonContent(Level *level, float x, float y, float width);
 void drawBanner(App *app);
+void startRewind(App *app, int level);
+void endRewind(App *app);
+void saveShot(App *app);       // remembers the shot's question
+void restoreShot(App *app);    // goes back to it
 void drawSlideOverlay(App *app);   // the Slide window: what the slides say
 
 #endif

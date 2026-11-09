@@ -593,6 +593,8 @@ void makeLevel13(MadeUpQuestion *q) {
     line(q, TextFormat("%s arr[10];          // starts at address %d", types[t], base));
     line(q, TextFormat("%s *ptr = arr + %d;", types[t], step));
     line(q, "// what address does ptr hold?");
+    // The tests check this with the real sizes: how many bytes ptr is past arr
+    check(q, TextFormat("cout << %d + (int)((char*)ptr - (char*)arr);", base));
     answer(q, TextFormat("%d", result));
     mistake(q, TextFormat("%d", base + step), TextFormat("+ %d moves %d whole elements, not %d bytes.", step, step, step));
     mistake(q, TextFormat("%d", base + (step + 1) * sizes[t]), "That's one element too far.");
@@ -877,24 +879,26 @@ void makeLevel22(MadeUpQuestion *q) {
 // ============================================================
 
 void makeLevel23(MadeUpQuestion *q) {
-    int value = randomInt(2, 60);
+    int value = randomInt(1, 50);
     if (randomInt(0, 1) == 0) {
-        // Slides 4-8: a pointer to a variable that has gone out of scope
+        // Slides 4-8: a pointer to a variable that goes out of scope
+        const char *varNames[3] = { "x", "y", "count" };
+        const char *v = varNames[randomInt(0, 2)];
         line(q, "int main() {");
         line(q, "  int *p;");
-        if (randomInt(0, 1) == 0) line(q, TextFormat("  int count = %d;", randomInt(1, 9)));
+        if (randomInt(0, 1) == 1) line(q, TextFormat("  int total = %d;", randomInt(1, 9)));
         line(q, "  if (true) {");
-        line(q, TextFormat("    int x = %d;", value));
-        line(q, "    p = &x;");
-        int assignLine = countLinesIn(q->body);
+        line(q, TextFormat("    int %s = %d;", v, value));
+        line(q, TextFormat("    p = &%s;", v));
+        int pointLine = countLinesIn(q->body);
         line(q, "  }");
         line(q, "  cout << *p << endl;");
         int bugLine = countLinesIn(q->body);
         line(q, "}");
         answer(q, TextFormat("%d", bugLine));
-        mistake(q, TextFormat("%d", assignLine), "When p = &x; runs, x still exists, so that line is fine. The problem comes later.");
-        mistake(q, TextFormat("%d", assignLine + 1), "x goes out of scope at that }, but nothing reads through p on that line.");
-        layout(q, TextFormat("x only exists inside the if block.\nThe block ends on line %d.\nWhich later line reads through p?", assignLine + 1));
+        mistake(q, TextFormat("%d", pointLine), TextFormat("On that line %s still exists, so p = &%s; is fine at that moment.", v, v));
+        mistake(q, TextFormat("%d", pointLine + 1), TextFormat("%s goes out of scope there, but nothing reads through p on that line.", v));
+        layout(q, TextFormat("%s is created inside the if block.\nThe } on line %d ends the block, so %s is gone.\nWhich later line reads through p?", v, pointLine + 1, v));
         finish(q, TASK_BUG, "Which line uses a dangling pointer? Type the line number.");
     } else {
         // Slides 9-11: returning the address of a local variable
@@ -907,168 +911,157 @@ void makeLevel23(MadeUpQuestion *q) {
         line(q, "  cout << *p << endl;");
         line(q, "}");
         answer(q, "3");
-        mistake(q, "2", "Declaring x is fine. The problem is what the function does with x's address.");
-        mistake(q, "6", "The pointer it gets is already dangling, but the mistake was made inside the function.");
-        layout(q, "x is a local variable: it disappears when getPtrToFive returns.\nWhich line hands its address back to main?");
-        finish(q, TASK_BUG, "Which line inside getPtrToFive causes a dangling pointer? Type the line number.");
+        mistake(q, "2", "Making a local x is fine on its own. The problem is handing out its address.");
+        mistake(q, "7", "That's where the dangling pointer is used, but the mistake is made earlier. Which line hands out an address that's about to disappear?");
+        layout(q, "x is a local variable inside getPtrToFive.\nIt disappears when the function returns.\nWhich line hands its address back?");
+        finish(q, TASK_BUG, "Which line returns a pointer that will be dangling? Type the line number.");
     }
-    hints(q, "A local variable disappears at the end of the block it was declared in.",
-             "A pointer to it after that is a dangling pointer (slide 8).",
-             "Find the line where the dead variable's address is used or handed back.");
-    note(q, "When a variable goes out of scope its memory can be reused. A pointer that still points there is dangling (slide 8). "
-            "Never return the address of a local variable (slide 9).");
+    check(q, "SKIP");
+    hints(q, "Where does the variable stop existing?",
+             "A variable goes out of scope at the } that ends its block (or when its function returns).",
+             "Look for where its address is used or handed out after that.");
+    note(q, "When a variable goes out of scope its memory can be reused, so a pointer to it becomes a dangling pointer (Memory slides 3-11).");
 }
 
 void makeLevel24(MadeUpQuestion *q) {
     int v[3];
     differentNumbers(v, 3, 1, 60);
     bool curly = randomInt(0, 1) == 1;
-    const char *first = curly ? TextFormat("int *x = new int{%d};", v[0]) : TextFormat("int *x = new int(%d);", v[0]);
-    line(q, first);
-    int result;
+    if (curly) line(q, TextFormat("int *x = new int{%d};", v[0]));
+    else line(q, TextFormat("int *x = new int(%d);", v[0]));
+
     if (randomInt(0, 1) == 0) {
         // Two pointers to the same int
         line(q, "int *y = x;");
         line(q, TextFormat("*y = %d;", v[1]));
         line(q, "cout << *x;");
         line(q, "delete x;");
-        int *x = new int(v[0]);
-        int *y = x;
-        *y = v[1];
-        result = *x;
-        delete x;
-        mistake(q, TextFormat("%d", v[0]), "y = x copies the address, so x and y point at the SAME int.");
-        layout(q, "x -> one int on the heap\ny = x;   now y points at the same int\n*y = ... changes that int");
+        answer(q, TextFormat("%d", v[1]));
+        mistake(q, TextFormat("%d", v[0]), "y = x copies the address, so x and y point at the same int, and *y = ... changes it.");
+        layout(q, TextFormat("x -> an int holding %d\ny = x;   so y points at the SAME int\n*y = %d;  changes that int", v[0], v[1]));
     } else {
-        // Two different ints: copying the value doesn't link them
+        // Two separate ints
         line(q, TextFormat("int *y = new int(%d);", v[1]));
-        line(q, "*x = *y;");
-        line(q, TextFormat("*y = %d;", v[2]));
-        line(q, "cout << *x;");
+        line(q, "*y = *x;");
+        line(q, TextFormat("*x = %d;", v[2]));
+        line(q, "cout << *y;");
         line(q, "delete x;");
         line(q, "delete y;");
-        int *x = new int(v[0]);
-        int *y = new int(v[1]);
-        *x = *y;
-        *y = v[2];
-        result = *x;
-        delete x;
-        delete y;
-        mistake(q, TextFormat("%d", v[2]), "*x = *y copies the VALUE. x and y still point at two different ints.");
-        layout(q, "x and y point at two different ints\n*x = *y copies y's value into x's int\nthen only y's int changes");
+        answer(q, TextFormat("%d", v[0]));
+        mistake(q, TextFormat("%d", v[2]), "x and y point at two different ints. *y = *x; copied the value, so changing *x later doesn't change *y.");
+        mistake(q, TextFormat("%d", v[1]), "*y = *x; copies the int x points at into the int y points at.");
+        layout(q, TextFormat("x -> int holding %d,  y -> another int holding %d\n*y = *x;  copies the value across\n*x = %d;  only changes x's int", v[0], v[1], v[2]));
     }
-    answer(q, TextFormat("%d", result));
-    hints(q, "Draw a box for each int made with new, and an arrow for each pointer.",
-             "Assigning pointers (y = x) shares one int. Assigning values (*x = *y) copies a number.",
-             "Then follow the arrows to the int that x points at.");
-    note(q, "new int(5) makes an int on the heap and gives you its address (slides 12-14). Two pointers can point at the same int.");
-    finish(q, TASK_TRACE, "What does it print?");
+    hints(q, "Draw each new int as a box, and arrows for x and y.",
+             "y = x makes y point at the same box. *y = *x copies a value between boxes.",
+             "Follow the arrows to see which box gets printed.");
+    note(q, "new int(5) makes an int on the heap and gives back its address (slides 12-14). Two pointers can hold the same address.");
+    finish(q, TASK_TRACE, "What does this print?");
 }
 
 void makeLevel25(MadeUpQuestion *q) {
-    int count = randomInt(2, 5);
+    int n = randomInt(2, 6);
     int variant = randomInt(0, 2);
-    line(q, "int main() {");
-    line(q, "  int *p;");
-    line(q, TextFormat("  for (int i = 0; i < %d; ++i) {", count));
-    line(q, "    p = getPtrToFive();");
-    line(q, "    cout << *p << endl;");
-    if (variant == 2) line(q, "    delete p;");
-    line(q, "  }");
-    if (variant == 1) line(q, "  delete p;");
+    line(q, "int *p;");
+    line(q, TextFormat("for (int i = 0; i < %d; ++i) {", n));
+    line(q, "  p = getPtrToFive();");
+    line(q, "  cout << *p << endl;");
+    if (variant == 2) line(q, "  delete p;");
     line(q, "}");
+    if (variant == 1) line(q, "delete p;");
 
-    int leaked = count;
-    if (variant == 1) leaked = count - 1;
+    int leaked = n;
+    if (variant == 1) leaked = n - 1;
     if (variant == 2) leaked = 0;
     answer(q, TextFormat("%d", leaked));
-    if (variant == 0) mistake(q, "0", "Nothing here deletes the ints, so every one of them is leaked.");
+    if (variant == 0) mistake(q, "0", "Nothing here deletes the ints, so every one leaks.");
     if (variant == 1) {
-        mistake(q, TextFormat("%d", count), "The delete after the loop does free one of them: the last one.");
-        mistake(q, "0", "One delete can only free one int (slide 25).");
+        mistake(q, TextFormat("%d", n), "The delete after the loop does free one int: the last one.");
+        mistake(q, "0", TextFormat("One delete frees one int, but new ran %d times.", n));
     }
-    if (variant == 2) mistake(q, TextFormat("%d", count), "delete p; runs every time round the loop, so each int is freed.");
-    hints(q, "Each call to getPtrToFive() allocates one int with new.",
-             "Count how many times delete runs.",
-             "Leaked = allocated - deleted.");
-    layout(q, TextFormat("new runs %d times (once each time round the loop)\ndelete runs ... times\nleaked = %d - deletes", count, count));
-    note(q, "Memory from new that is never deleted is a memory leak (slide 23). In a loop, the delete has to be inside the loop (slide 26).");
-    finish(q, TASK_TRACE, "How many of the ints that getPtrToFive() allocates are never deleted (leaked)?");
+    if (variant == 2) mistake(q, TextFormat("%d", n), "delete p; runs every time round the loop, straight after each int is used.");
+    check(q, "SKIP");
+    hints(q, "Every call to getPtrToFive() does a new.",
+             "Count the news, then count the deletes.",
+             "leaked = news - deletes");
+    layout(q, TextFormat("new runs %d times (once each time round the loop)\ndelete runs: count it\nleaked = %d - deletes", n, n));
+    note(q, "Every new needs exactly one delete. In a loop, the delete goes inside the loop (Memory slides 19-26).");
+    finish(q, TASK_TRACE, "How many of the ints from getPtrToFive() are never deleted (leaked)?");
 }
 
 void makeLevel26(MadeUpQuestion *q) {
     int variant = randomInt(0, 2);
     bool extra = randomInt(0, 1) == 1;
-    int bugLine;
-    int otherLine;
-    const char *otherWhy;
-
+    int bugLine = 0;
     line(q, "int main() {");
-    if (extra) line(q, "  cout << \"start\" << endl;");
     if (variant == 0) {
         // Slide 34: using memory after deleting it
         line(q, "  int *x = getPtrToFive();");
+        if (extra) line(q, "  cout << *x << endl;");
         line(q, "  delete x;");
-        otherLine = countLinesIn(q->body);
+        int deleteLine = countLinesIn(q->body);
         line(q, "  cout << *x << endl;");
         bugLine = countLinesIn(q->body);
-        otherWhy = "Deleting is right. Look at what happens after it.";
+        mistake(q, TextFormat("%d", deleteLine), "Deleting is right. Look at what happens after it.");
+        layout(q, TextFormat("Line %d frees the memory that x points at.\nWhich line after that still reads *x?", deleteLine));
     } else if (variant == 1) {
         // Slide 36: deleting the same memory twice
         line(q, "  int *x = getPtrToFive();");
         line(q, "  cout << *x << endl;");
         line(q, "  delete x;");
-        otherLine = countLinesIn(q->body);
+        int firstDelete = countLinesIn(q->body);
+        if (extra) line(q, "  cout << \"done\" << endl;");
         line(q, "  delete x;");
         bugLine = countLinesIn(q->body);
-        otherWhy = "The first delete is fine. It's the second one that frees memory that's already gone.";
+        mistake(q, TextFormat("%d", firstDelete), "The first delete is fine. Look for memory that's freed a second time.");
+        layout(q, TextFormat("Line %d frees the memory x points at.\nIs it freed again later?", firstDelete));
     } else {
         // Slide 38: deleting memory that didn't come from new
-        line(q, TextFormat("  int x = %d;", randomInt(2, 50)));
+        int value = randomInt(1, 50);
+        line(q, TextFormat("  int x = %d;", value));
         line(q, "  int *xPtr = &x;");
-        otherLine = countLinesIn(q->body);
+        int pointLine = countLinesIn(q->body);
+        if (extra) line(q, TextFormat("  *xPtr = %d;", value + 1));
         line(q, "  cout << *xPtr << endl;");
         line(q, "  delete xPtr;");
         bugLine = countLinesIn(q->body);
-        otherWhy = "Pointing at x is fine. Which line frees memory that never came from new?";
+        mistake(q, TextFormat("%d", pointLine), "Pointing at x is fine.");
+        layout(q, TextFormat("Line %d: xPtr = &x, and x is a normal variable (not from new).\nOnly memory from new can be deleted.\nWhich line deletes?", pointLine));
     }
     line(q, "}");
     answer(q, TextFormat("%d", bugLine));
-    mistake(q, TextFormat("%d", otherLine), otherWhy);
-    hints(q, "Slides 34-39: don't use memory after deleting it, don't delete it twice, only delete memory from new.",
-             "Follow the pointer from top to bottom.",
-             "Find the first line that breaks one of those three rules.");
-    layout(q, "Rule 1: no reading after delete\nRule 2: no second delete\nRule 3: only delete memory from new\nWhich line breaks a rule?");
-    note(q, "Three rules (slides 34-39): don't use memory after deletion, don't delete memory twice, and only delete memory that was allocated by new.");
+    check(q, "SKIP");
+    hints(q, "Follow the pointer from top to bottom.",
+             "The three rules: don't use memory after delete, don't delete twice, only delete memory from new.",
+             "Which line breaks one of those rules?");
+    note(q, "Memory slides 34-39: don't use memory after deleting it, don't delete memory twice, and only delete memory that came from new.");
     finish(q, TASK_BUG, "Which line is wrong? Type the line number.");
 }
 
 void makeLevel27(MadeUpQuestion *q) {
-    int count = randomInt(3, 6);
-    int times = randomInt(2, 9);
-    int ask = randomInt(0, count - 1);
-    line(q, TextFormat("int numItems = %d;", count));
+    int n = randomInt(3, 6);
+    int k = randomInt(2, 9);
+    int j = randomInt(0, n - 1);
+    line(q, TextFormat("int numItems = %d;", n));
     line(q, "int *arr = new int[numItems];");
     line(q, "for (int i = 0; i < numItems; ++i) {");
-    line(q, TextFormat("  arr[i] = i * %d;", times));
+    line(q, TextFormat("    arr[i] = i * %d;", k));
     line(q, "}");
-    line(q, TextFormat("cout << arr[%d] << endl;", ask));
+    line(q, TextFormat("cout << arr[%d] << endl;", j));
     line(q, "delete[] arr;");
 
-    int *arr = new int[count];
-    for (int i = 0; i < count; ++i) {
-        arr[i] = i * times;
-    }
-    int result = arr[ask];
+    int *arr = new int[n];
+    for (int i = 0; i < n; ++i) arr[i] = i * k;
+    int result = arr[j];
     delete[] arr;
     answer(q, TextFormat("%d", result));
-    mistake(q, TextFormat("%d", (ask + 1) * times), "Arrays count from 0: arr[0] is the first item.");
-    hints(q, "new int[numItems] makes an array of numItems ints.",
-             "Each item gets i times a number.",
-             "Work out which i the printed item has.");
-    layout(q, TextFormat("arr[0] = 0 * %d\narr[1] = 1 * %d\n...\narr[%d] = ...", times, times, ask));
-    note(q, "new int[numItems] makes an array whose size is only known when the program runs (slide 41). Free it with delete[] (slide 45).");
-    finish(q, TASK_TRACE, "What does it print?");
+    mistake(q, TextFormat("%d", (j + 1) * k), "Element 0 holds 0 * the number, so count from 0.");
+    hints(q, "The loop fills element i with i times a number.",
+             "Which element is printed?",
+             "Multiply its index by the number.");
+    layout(q, TextFormat("arr[0] = 0 * %d, arr[1] = 1 * %d, ...\nthe line prints arr[%d]", k, k, j));
+    note(q, "new int[numItems] makes an array whose size is only known when the program runs, and delete[] frees it (Memory slides 40-45).");
+    finish(q, TASK_TRACE, "What does this print?");
 }
 
 void makeLevel28(MadeUpQuestion *q) {
@@ -1093,38 +1086,31 @@ void makeLevel28(MadeUpQuestion *q) {
     line(q, "}");
     line(q, "delete[] arr2D;");
 
-    // The same steps for real
     int **arr2D = new int*[rows];
-    for (int row = 0; row < rows; row++) {
-        arr2D[row] = new int[cols];
-    }
+    for (int row = 0; row < rows; row++) arr2D[row] = new int[cols];
     int counter = 1;
     for (int row = 0; row < rows; row++) {
-        for (int col = 0; col < cols; col++) {
-            arr2D[row][col] = counter++;
-        }
+        for (int col = 0; col < cols; col++) arr2D[row][col] = counter++;
     }
     int result = arr2D[r][c];
-    for (int row = 0; row < rows; row++) {
-        delete[] arr2D[row];
-    }
+    for (int row = 0; row < rows; row++) delete[] arr2D[row];
     delete[] arr2D;
 
     answer(q, TextFormat("%d", result));
-    if (r != c && c < rows && r < cols) mistake(q, TextFormat("%d", c * cols + r + 1), "The first number picks the row and the second the column.");
-    mistake(q, TextFormat("%d", c * rows + r + 1), "counter goes along each row first, then moves down to the next row.");
-    hints(q, "counter fills row 0 first, left to right, then row 1, and so on.",
-             TextFormat("Each row has %d items.", cols),
-             "Count to the element: rows before it, then columns.");
-    layout(q, TextFormat("row 0: 1, 2, ... %d\nrow 1: %d, ...\nfind row %d, column %d", cols, cols + 1, r, c));
-    note(q, "A 2D array of any size is an array of row pointers (int**), and each row is its own new int[cols] (slides 46-48).");
-    finish(q, TASK_TRACE, "This is the code from slide 46. What does it print?");
+    mistake(q, TextFormat("%d", result - 1), "counter starts at 1, not 0.");
+    mistake(q, TextFormat("%d", c * rows + r + 1), "The counter fills along each row first, then moves to the next row.");
+    hints(q, "The counter fills row 0 first (left to right), then row 1, and so on.",
+             TextFormat("Each row has %d elements.", cols),
+             "Count along the rows until you reach [row][col].");
+    layout(q, TextFormat("row 0 holds 1 to %d\nrow 1 starts at %d\nthen count along to the column", cols, cols + 1));
+    note(q, "int** arr2D = new int*[rows]; makes the row pointers, then each row gets new int[cols]. Free the rows first, then arr2D (Memory slides 46-48).");
+    finish(q, TASK_TRACE, "What does this print?");
 }
 
 void makeLevel29(MadeUpQuestion *q) {
     int size = randomInt(3, 6);
-    int times = randomInt(2, 9);
-    int ask = randomInt(0, size - 1);
+    int k = randomInt(2, 12);
+    int j = randomInt(0, size - 1);
     line(q, TextFormat("int size = %d;", size));
     line(q, "int *arr = (int*)malloc(size * sizeof(int));");
     line(q, "if (arr == NULL) {");
@@ -1132,37 +1118,20 @@ void makeLevel29(MadeUpQuestion *q) {
     line(q, "    return 1;");
     line(q, "}");
     line(q, "for (int i = 0; i < size; i++) {");
-    line(q, TextFormat("    arr[i] = i * %d;", times));
+    line(q, TextFormat("    arr[i] = i * %d;", k));
     line(q, "}");
-    line(q, TextFormat("printf(\"%%d\", arr[%d]);", ask));
+    line(q, TextFormat("printf(\"%%d\\n\", arr[%d]);", j));
     line(q, "free(arr);");
     line(q, "arr = NULL;");
 
-    int *arr = (int *)malloc(size * sizeof(int));
-    int result = 0;
-    if (arr != NULL) {
-        for (int i = 0; i < size; i++) {
-            arr[i] = i * times;
-        }
-        result = arr[ask];
-        free(arr);
-    }
-    answer(q, TextFormat("%d", result));
-    mistake(q, TextFormat("%d", (ask + 1) * times), "Arrays count from 0: arr[0] is the first item.");
-    hints(q, "malloc gives room for size ints, used like an array.",
-             "Each item gets i times a number.",
-             "Work out which i the printed item has.");
-    layout(q, TextFormat("arr[0] = 0 * %d\narr[1] = 1 * %d\n...\narr[%d] = ...", times, times, ask));
-    note(q, "C uses malloc and free instead of new and delete. Check for NULL after malloc, and set the pointer to NULL after free (slide 51).");
-    finish(q, TASK_TRACE, "This is the code from slide 50. What does it print?");
-}
-
-int Add(int num1, int num2) {
-    return num1 + num2;
-}
-
-int Subtract(int num1, int num2) {
-    return num1 - num2;
+    answer(q, TextFormat("%d", j * k));
+    mistake(q, TextFormat("%d", (j + 1) * k), "Element 0 holds 0 times the number, so count from 0.");
+    hints(q, "malloc gives room for size ints, and the loop fills them.",
+             "Element i holds i times the number.",
+             "Which element does the printf print?");
+    layout(q, TextFormat("arr[0] = 0 * %d, arr[1] = 1 * %d, ...\nprintf prints arr[%d]", k, k, j));
+    note(q, "C uses malloc and free: always check for NULL, use sizeof, and set the pointer to NULL after freeing (Memory slides 49-51).");
+    finish(q, TASK_TRACE, "What does this print?");
 }
 
 void makeLevel30(MadeUpQuestion *q) {
@@ -1176,35 +1145,21 @@ void makeLevel30(MadeUpQuestion *q) {
     def(q, "{");
     def(q, "    return num1 - num2;");
     def(q, "}");
-
-    // A real function pointer, pointed at the same function as the question
-    int (*functionPtr)(int, int);
-    line(q, "int (*functionPtr)(int, int);");
     bool useAdd = randomInt(0, 1) == 1;
-    if (useAdd) {
-        line(q, "functionPtr = Add;");
-        functionPtr = Add;
-    } else {
-        line(q, "functionPtr = Subtract;");
-        functionPtr = Subtract;
-    }
-    if (randomInt(0, 1) == 0) {
-        line(q, useAdd ? "functionPtr = Subtract;" : "functionPtr = Add;");
-        if (useAdd) functionPtr = Subtract;
-        else functionPtr = Add;
-    }
+    line(q, "int (*functionPtr)(int, int);");
+    line(q, useAdd ? "functionPtr = Add;" : "functionPtr = Subtract;");
     line(q, TextFormat("int result = functionPtr(%d, %d);", v[0], v[1]));
-    line(q, "cout << result;");
-    int result = functionPtr(v[0], v[1]);
-    answer(q, TextFormat("%d", result));
-    mistake(q, TextFormat("%d", v[0] + v[1]), "Check which function functionPtr points at when it's called.");
-    mistake(q, TextFormat("%d", v[0] - v[1]), "Check which function functionPtr points at when it's called.");
-    hints(q, "functionPtr = Add; makes the pointer point at Add.",
-             "If it's assigned twice, the last assignment counts.",
-             "functionPtr(a, b) calls whichever function it points at.");
-    layout(q, "functionPtr points at: (the last function assigned)\nthat function is called with the two numbers");
-    note(q, "A function pointer stores a function's address: int (*functionPtr)(int, int); functionPtr = Add; then functionPtr(20, 10) calls Add (slides 55-56).");
-    finish(q, TASK_TRACE, "What does it print?");
+    int result = v[0] - v[1];
+    if (useAdd) result = v[0] + v[1];
+    check(q, "cout << result;");
+    numberAnswer(q, "result", result);
+    mistake(q, TextFormat("%d", useAdd ? v[0] - v[1] : v[0] + v[1]), "Check which function was assigned to functionPtr.");
+    hints(q, "functionPtr points at one of the two functions.",
+             "Calling functionPtr(a, b) calls that function.",
+             "Work out what that function returns for these numbers.");
+    layout(q, TextFormat("functionPtr = %s;\nso functionPtr(%d, %d) is the same as %s(%d, %d)", useAdd ? "Add" : "Subtract", v[0], v[1], useAdd ? "Add" : "Subtract", v[0], v[1]));
+    note(q, "A function pointer stores a function's address: functionPtr = Add; then functionPtr(20, 10) calls Add (Memory slides 55-56).");
+    finish(q, TASK_TRACE, "What is result?");
 }
 
 void makeLevel31(MadeUpQuestion *q) {
@@ -1213,46 +1168,41 @@ void makeLevel31(MadeUpQuestion *q) {
     bool local = randomInt(0, 1) == 1;
     def(q, TextFormat("int glVar = %d;", v[0]));
     def(q, "int *getPtrToFive() {");
-    if (local) def(q, "    int glVar;");
+    if (local) def(q, "    int glVar;          // a local glVar");
     def(q, "    int *x = new int;");
     def(q, "    *x = 5;");
     def(q, TextFormat("    glVar = %d;", v[1]));
     def(q, "    return x;");
     def(q, "}");
     line(q, "int *p = getPtrToFive();");
-    line(q, "cout << glVar;");
     line(q, "delete p;");
+    check(q, "cout << glVar;");
     int result = v[1];
     if (local) result = v[0];
-    answer(q, TextFormat("%d", result));
+    numberAnswer(q, "glVar", result);
     if (local) mistake(q, TextFormat("%d", v[1]), "The local glVar hides the global one inside the function, so only the local copy changed.");
-    else mistake(q, TextFormat("%d", v[0]), "There's no local glVar, so glVar = ... changes the global one.");
-    hints(q, "Is there a variable called glVar declared inside the function?",
-             "A local variable with the same name hides the global inside that function.",
-             "main prints the GLOBAL glVar.");
-    layout(q, local ? "inside getPtrToFive: int glVar; is a NEW local variable\nglVar = ... changes the local one\nthe global is still ..." :
-                      "inside getPtrToFive there's no local glVar\nso glVar = ... changes the global\nthe global is now ...");
-    note(q, "A global variable is visible in every function, unless a function declares its own local variable with the same name (slides 52-54).");
-    finish(q, TASK_TRACE, "What does it print?");
+    else mistake(q, TextFormat("%d", v[0]), "There's no local glVar this time, so the function changes the global one.");
+    hints(q, "Is there a local variable called glVar inside the function?",
+             "A local variable with the same name hides the global one inside that function.",
+             "Without a local one, glVar means the global.");
+    layout(q, local ? "Inside the function, int glVar; makes a NEW local glVar.\nThe assignment changes that local one.\nThe global keeps its value." : "There's no local glVar inside the function.\nSo the assignment changes the global glVar.");
+    note(q, "A global variable can be used in every function, unless a local variable with the same name hides it (Memory slides 52-54).");
+    finish(q, TASK_TRACE, "getPtrToFive() has just run. What is the global glVar now?");
 }
 
 // ============================================================
 // Chapter 6: Pointers and classes
 // ============================================================
 
-void pointClass(MadeUpQuestion *q) {
-    def(q, "class Point {");
-    def(q, "public:");
-    def(q, "    double x, y;");
-    def(q, "    Point() { x = 0.0; y = 0.0; }");
-    def(q, "};");
-}
-
 void makeLevel32(MadeUpQuestion *q) {
     int v[4];
     differentNumbers(v, 4, 1, 20);
     int variant = randomInt(0, 2);
-    pointClass(q);
+    bool askX = randomInt(0, 1) == 1;
+    def(q, "class Point {");
+    def(q, "public:");
+    def(q, "    double x, y;");
+    def(q, "};");
     if (variant == 0) def(q, "void offsetPoint(Point p, double x, double y) {");
     if (variant == 1) def(q, "void offsetPoint(Point &p, double x, double y) {");
     if (variant == 2) def(q, "void offsetPoint(Point *p, double x, double y) {");
@@ -1262,124 +1212,138 @@ void makeLevel32(MadeUpQuestion *q) {
     line(q, "Point p;");
     line(q, TextFormat("p.x = %d.0;", v[0]));
     line(q, TextFormat("p.y = %d.0;", v[1]));
-    line(q, TextFormat(variant == 2 ? "offsetPoint(&p, %d.0, %d.0);" : "offsetPoint(p, %d.0, %d.0);", v[2], v[3]));
-    bool askX = randomInt(0, 1) == 1;
-    line(q, askX ? "cout << p.x;" : "cout << p.y;");
+    if (variant == 2) line(q, TextFormat("offsetPoint(&p, %d.0, %d.0);", v[2], v[3]));
+    else line(q, TextFormat("offsetPoint(p, %d.0, %d.0);", v[2], v[3]));
+    check(q, askX ? "cout << p.x;" : "cout << p.y;");
 
     int start = askX ? v[0] : v[1];
-    int added = askX ? v[2] : v[3];
-    int result = start + added;
+    int moved = askX ? v[0] + v[2] : v[1] + v[3];
+    int result = moved;
     if (variant == 0) result = start;
     answer(q, TextFormat("%d", result));
     answer(q, TextFormat("%d.0", result));
-    if (variant == 0) mistake(q, TextFormat("%d", start + added), "Passing by value gives offsetPoint a copy, so the original p doesn't change (slide 28).");
-    else mistake(q, TextFormat("%d", start), "With & or *, offsetPoint changes the original p (slides 29 and 39).");
-    hints(q, "Look at offsetPoint's parameter: Point, Point & or Point *?",
-             "A plain Point is a copy. & and * reach the original.",
-             "Only the original p is printed.");
-    layout(q, TextFormat("parameter type: %s\nso the change %s the original p", variant == 0 ? "Point (a copy)" : (variant == 1 ? "Point & (a reference)" : "Point * (a pointer)"),
-                         variant == 0 ? "does NOT reach" : "DOES reach"));
-    note(q, "Passing an object by value passes a copy (slide 28). Pass by reference (Point &p) or pointer (Point *p, using ->) to change the original.");
-    finish(q, TASK_TRACE, "What does it print?");
+    if (variant == 0) mistake(q, TextFormat("%d", moved), "Pass by value gives the function a copy, so the original p doesn't change.");
+    else mistake(q, TextFormat("%d", start), "This version gets the real p (by reference or by pointer), so the change sticks.");
+    hints(q, "Look at the parameter: Point, Point & or Point *?",
+             "Point is a copy; Point & and Point * reach the original.",
+             "Then work out the new value, if it changes.");
+    layout(q, TextFormat("parameter type: %s\ncopy or original?\nthen p.%s = %d (+ the offset if it's the original)", variant == 0 ? "Point (a copy)" : (variant == 1 ? "Point & (the original)" : "Point * (the original)"), askX ? "x" : "y", start));
+    note(q, "Passing an object by value passes a copy (changes are lost). By reference or by pointer, the function changes the original (Classes slides 28-29, 39).");
+    finish(q, TASK_TRACE, TextFormat("What is p.%s after the call?", askX ? "x" : "y"));
 }
 
 void makeLevel33(MadeUpQuestion *q) {
     int v[3];
-    differentNumbers(v, 3, 1, 40);
-    pointClass(q);
+    differentNumbers(v, 3, 1, 50);
+    def(q, "class Point {");
+    def(q, "public:");
+    def(q, "    double x, y;");
+    def(q, "    Point() { x = 0.0; y = 0.0; }");
+    def(q, "};");
     line(q, "Point* pPtr;");
     line(q, "Point p;");
     line(q, "pPtr = &p;");
     line(q, TextFormat("pPtr->x = %d;", v[0]));
     line(q, TextFormat("p.y = %d;", v[1]));
     double x = v[0], y = v[1];
-    if (randomInt(0, 1) == 0) {
+    if (randomInt(0, 1) == 1) {
         line(q, TextFormat("pPtr->y = %d;", v[2]));
         y = v[2];
     }
-    int pick = randomInt(0, 3);
-    const char *asks[4] = { "cout << p.x;", "cout << p.y;", "cout << pPtr->x;", "cout << pPtr->y;" };
-    line(q, asks[pick]);
-    int result = (int)(pick % 2 == 0 ? x : y);
-    answer(q, TextFormat("%d", result));
-    answer(q, TextFormat("%d.0", result));
-    mistake(q, "0", "pPtr points at p, so a change through either name changes the same Point.");
+    int pick = randomInt(0, 1);
+    if (pick == 0) {
+        check(q, "cout << p.x;");
+        answer(q, TextFormat("%d", (int)x));
+    } else {
+        check(q, "cout << pPtr->y;");
+        answer(q, TextFormat("%d", (int)y));
+    }
+    mistake(q, "0", "pPtr points at p, so a change through either name changes the same object.");
     hints(q, "How many Point objects are there?",
-             "pPtr = &p; so pPtr->x and p.x are the same variable.",
-             "Find the last line that set the one being printed.");
-    layout(q, "pPtr -> p   (one Point)\npPtr->x is p.x, pPtr->y is p.y\nthe last value written wins");
-    note(q, "Use -> to reach a member through a pointer: pPtr->x is the same as p.x when pPtr = &p (slide 57).");
-    finish(q, TASK_TRACE, "What does it print?");
+             "pPtr = &p; so pPtr->x IS p.x, and pPtr->y IS p.y.",
+             "Take the last value written to that member, whichever name was used.");
+    layout(q, "There is ONE Point, reached as p or as pPtr.\nGo down the lines and keep track of its x and y.");
+    note(q, "Point* pPtr = &p; then pPtr->x is the same variable as p.x. Use -> through a pointer, . on an object (Classes slide 57).");
+    finish(q, TASK_TRACE, pick == 0 ? "What is p.x at the end?" : "What is pPtr->y at the end?");
 }
 
 void makeLevel34(MadeUpQuestion *q) {
     int v[3];
-    differentNumbers(v, 3, 1, 40);
-    pointClass(q);
+    differentNumbers(v, 3, 1, 50);
+    def(q, "class Point {");
+    def(q, "public:");
+    def(q, "    double x, y;");
+    def(q, "    Point() { x = 0.0; y = 0.0; }");
+    def(q, "};");
     line(q, "Point* p = new Point();");
-    line(q, "Point* pPtr;");
-    line(q, "pPtr = p;");
-    line(q, TextFormat("pPtr->x = %d;", v[0]));
-    line(q, TextFormat("p->y = %d;", v[1]));
-    double x = v[0], y = v[1];
-    if (randomInt(0, 1) == 0) {
-        line(q, TextFormat("p->x = %d;", v[2]));
-        x = v[2];
+    double x = 0;
+    bool second = randomInt(0, 1) == 1;
+    if (second) {
+        line(q, "Point* q = new Point();");
+        line(q, TextFormat("p->x = %d;", v[0]));    x = v[0];
+        line(q, TextFormat("q->x = %d;", v[1]));
+        line(q, "cout << p->x;");
+        line(q, "delete p;");
+        line(q, "delete q;");
+        mistake(q, TextFormat("%d", v[1]), "p and q point at two different Points, because new ran twice.");
+    } else {
+        line(q, "Point* pPtr;");
+        line(q, "pPtr = p;");
+        line(q, TextFormat("pPtr->x = %d;", v[0]));
+        line(q, TextFormat("p->x = %d;", v[1]));    x = v[1];
+        line(q, "cout << pPtr->x;");
+        line(q, "delete p;");
+        mistake(q, TextFormat("%d", v[0]), "pPtr = p; copies the address, so p and pPtr point at the same Point. The last write wins.");
     }
-    bool askX = randomInt(0, 1) == 1;
-    line(q, askX ? "cout << pPtr->x;" : "cout << pPtr->y;");
-    line(q, "delete p;");
-    int result = (int)(askX ? x : y);
-    answer(q, TextFormat("%d", result));
-    answer(q, TextFormat("%d.0", result));
-    mistake(q, "0", "p and pPtr point at the SAME Point, so changes through either one show up in both.");
-    hints(q, "new Point() makes ONE Point.",
-             "pPtr = p; copies the address, not the object.",
-             "Find the last line that set the member being printed.");
-    layout(q, "p -> the Point made by new\npPtr = p;   pPtr -> the same Point\nthe last value written to that member wins");
-    note(q, "p = new Point(); creates an object on the heap. Two pointers can point at it, and a change through one is seen through the other (slides 58-60).");
-    finish(q, TASK_TRACE, "What does it print?");
+    answer(q, TextFormat("%d", (int)x));
+    mistake(q, "0", "x is set after the Point is created, so it isn't 0 any more.");
+    hints(q, "Count how many times new runs: that's how many Points exist.",
+             "Copying a pointer copies the address, not the object.",
+             "Follow the arrows to the Point that gets printed.");
+    layout(q, second ? "new runs twice: p -> Point A, q -> Point B\np->x changes A, q->x changes B" : "new runs once: p -> Point A\npPtr = p;  so pPtr -> Point A too");
+    note(q, "new Point() creates an instance on the heap. Two pointers can point at the same instance (Classes slides 58-60).");
+    finish(q, TASK_TRACE, "What does this print?");
 }
 
 void makeLevel35(MadeUpQuestion *q) {
     int v[4];
-    differentNumbers(v, 4, 1, 30);
+    differentNumbers(v, 4, 1, 50);
     def(q, "class Point {");
     def(q, "public:");
     def(q, "    double x, y;");
     def(q, "    Point() {");
-    def(q, TextFormat("        this->x = %d.0; this->y = %d.0;", v[0], v[1]));
+    def(q, TextFormat("        this->x = %d; this->y = %d;", v[0], v[1]));
     def(q, "    }");
-    def(q, "    Point(double nx, double ny) {");
-    def(q, "        this->x = nx; this->y = ny;");
+    def(q, "    Point(double newX, double newY) {");
+    def(q, "        this->x = newX; this->y = newY;");
     def(q, "    }");
     def(q, "};");
     line(q, "Point p;");
-    line(q, TextFormat("Point q(%d.0, %d.0);", v[2], v[3]));
+    line(q, TextFormat("Point q(%d, %d);", v[2], v[3]));
     int pick = randomInt(0, 3);
-    const char *asks[4] = { "cout << p.x;", "cout << p.y;", "cout << q.x;", "cout << q.y;" };
-    line(q, asks[pick]);
-    int result = v[pick];
-    answer(q, TextFormat("%d", result));
-    answer(q, TextFormat("%d.0", result));
+    const char *asks[4] = { "p.x", "p.y", "q.x", "q.y" };
+    check(q, TextFormat("cout << %s;", asks[pick]));
+    answer(q, TextFormat("%d", v[pick]));
     for (int k = 0; k < 4; k++) {
-        mistake(q, TextFormat("%d", v[k]), "Check which constructor each object uses: Point p; uses the one with no parameters.");
+        if (k != pick) mistake(q, TextFormat("%d", v[k]), "Check which constructor each Point uses, and which member is asked for.");
     }
-    hints(q, "this points at the object being made.",
-             "Point p; calls the constructor with no parameters. q(.., ..) calls the other one.",
-             "this->x is that object's own x.");
-    layout(q, "Point p;        -> the default constructor sets p's x and y\nPoint q(a, b);  -> the second constructor sets q's x and y");
-    note(q, "Inside a method, this points at the object it was called on, so this->x is that object's own x (slide 61).");
-    finish(q, TASK_TRACE, "What does it print?");
+    hints(q, "Point p; uses the constructor with no arguments.",
+             "Point q(a, b); uses the one with two arguments.",
+             "this->x is the x of the object being made.");
+    layout(q, TextFormat("p: Point()            -> x = %d, y = %d\nq: Point(newX, newY)  -> x = newX, y = newY", v[0], v[1]));
+    note(q, "Inside a method, this points at the object the method is working on, so this->x is that object's x (Classes slide 61).");
+    finish(q, TASK_TRACE, TextFormat("What is %s?", asks[pick]));
 }
 
 void makeLevel36(MadeUpQuestion *q) {
-    const char *namesList[6] = { "foo", "bar", "sam", "ann", "joe", "max" };
-    char name[8];
-    snprintf(name, sizeof(name), "%s", namesList[randomInt(0, 5)]);
-    int position = randomInt(0, 2);
+    const char *nameWords[6] = { "foo", "kim", "sam", "bob", "ann", "joe" };
+    char n[10];
+    snprintf(n, sizeof(n), "%s", nameWords[randomInt(0, 5)]);
+    char original[10];
+    snprintf(original, sizeof(original), "%s", n);
+    int k = randomInt(0, 2);
     char letter = (char)('a' + randomInt(0, 25));
-    if (letter == name[position]) letter = (letter == 'z') ? 'a' : (char)(letter + 1);
+    if (letter == n[k]) letter = (char)(letter == 'z' ? 'a' : letter + 1);
 
     def(q, "class MITStudent {");
     def(q, "public:");
@@ -1387,91 +1351,88 @@ void makeLevel36(MadeUpQuestion *q) {
     def(q, "    char *name;");
     def(q, "};");
     line(q, "MITStudent student1;");
-    line(q, TextFormat("student1.studentID = %d;", randomInt(10, 99)));
-    line(q, TextFormat("char n[] = \"%s\";", name));
+    line(q, TextFormat("char n[] = \"%s\";", n));
     line(q, "student1.name = n;");
-    line(q, "MITStudent student2 = student1;");
-    line(q, TextFormat("student2.name[%d] = '%c';", position, letter));
+    line(q, "MITStudent student2 = student1;   // default copy");
+    line(q, TextFormat("student2.name[%d] = '%c';", k, letter));
     line(q, "cout << student1.name;");
-
-    char original[8];
-    snprintf(original, sizeof(original), "%s", name);
-    name[position] = letter;   // student1.name and student2.name both point at n
-    answer(q, name);
-    answer(q, TextFormat("\"%s\"", name));
-    mistake(q, original, "The default copy copied the pointer, so both students share ONE name array.");
+    n[k] = letter;   // both students share the array n
+    answer(q, n);
+    answer(q, TextFormat("\"%s\"", n));
+    mistake(q, original, "The default copy copied the pointer, not the chars, so both students share the same array.");
     hints(q, "name is a char *, so copying the object copies only the address.",
-             "student1.name and student2.name point at the same array n.",
-             "So changing student2.name changes what student1.name shows too.");
-    layout(q, TextFormat("n = \"%s\"\nstudent1.name -> n, and student2.name -> n (the same array)\nstudent2.name[%d] = '%c' changes n", original, position, letter));
-    note(q, "The default copy copies every field. For a char * field that means only the address: both objects share one array - a shallow copy (slide 71).");
-    finish(q, TASK_TRACE, "What does it print?");
+             "student1.name and student2.name point at the same array.",
+             "Changing one char through student2 changes the shared array.");
+    layout(q, TextFormat("n holds \"%s\"\nboth names point at n\nstudent2.name[%d] = '%c' changes n[%d]", original, k, letter, k));
+    note(q, "Copying an object copies each field. For a pointer that's a shallow copy: both objects share the same memory (Classes slide 71).");
+    finish(q, TASK_TRACE, "What does the last line print?");
 }
 
 void makeLevel37(MadeUpQuestion *q) {
     int count = randomInt(3, 8);
-    int times = randomInt(2, 9);
-    int ask = randomInt(0, count - 1);
+    int k = randomInt(2, 9);
+    int j = randomInt(0, count - 1);
     def(q, "class Point {");
     def(q, "public:");
     def(q, "    int x;");
-    def(q, "    Point(int val) : x(val) {}");
+    def(q, "    Point(int val) { x = val; }");
     def(q, "};");
     line(q, TextFormat("Point* pointPointers[%d];", count));
     line(q, TextFormat("for (int i = 0; i < %d; i++) {", count));
-    line(q, TextFormat("    pointPointers[i] = new Point(i * %d);", times));
+    line(q, TextFormat("    pointPointers[i] = new Point(i * %d);", k));
     line(q, "}");
-    line(q, TextFormat("cout << pointPointers[%d]->x;", ask));
+    line(q, TextFormat("cout << pointPointers[%d]->x;", j));
     line(q, TextFormat("for (int i = 0; i < %d; i++) {", count));
     line(q, "    delete pointPointers[i];");
     line(q, "}");
-    int result = ask * times;
-    answer(q, TextFormat("%d", result));
-    mistake(q, TextFormat("%d", (ask + 1) * times), "Arrays count from 0: pointPointers[0] holds Point(0).");
-    hints(q, "Each element points at its own Point, made with new.",
-             "Point i is made with x = i times a number.",
-             "-> reaches x through the pointer.");
-    layout(q, TextFormat("pointPointers[0] -> Point(0 * %d)\npointPointers[1] -> Point(1 * %d)\n...\npointPointers[%d] -> ...", times, times, ask));
-    note(q, "An array of pointers to objects: each element needs its own new, and each one needs its own delete (slide 77).");
-    finish(q, TASK_TRACE, "What does it print?");
+    answer(q, TextFormat("%d", j * k));
+    mistake(q, TextFormat("%d", (j + 1) * k), "Element 0 is new Point(0 * the number), so count from 0.");
+    hints(q, "Element i points at a new Point made with i times the number.",
+             "pointPointers[j]->x is that Point's x.",
+             "Multiply the index by the number.");
+    layout(q, TextFormat("pointPointers[0] -> Point(0 * %d)\npointPointers[1] -> Point(1 * %d)\n...\nthe line prints pointPointers[%d]->x", k, k, j));
+    note(q, "An array of pointers needs a new for each element, and a delete for each one (Classes slide 77).");
+    finish(q, TASK_TRACE, "What does this print?");
 }
 
 void makeLevel38(MadeUpQuestion *q) {
+    def(q, "class Point {");
+    def(q, "public:");
+    def(q, "    double x, y;");
+    def(q, "};");
     def(q, "class TwentyThousandPoints {");
     def(q, "public:");
     def(q, "    Point* points;");
-    def(q, "    TwentyThousandPoints() {");
-    def(q, "        points = new Point[20000];");
-    def(q, "    }");
-    def(q, "    ~TwentyThousandPoints() {");
-    def(q, "        delete[] points;");
-    def(q, "    }");
+    def(q, "    TwentyThousandPoints() { points = new Point[20000]; }");
+    def(q, "    ~TwentyThousandPoints() { delete[] points; }");
     def(q, "};");
     int result;
     if (randomInt(0, 1) == 0) {
-        int count = randomInt(2, 6);
-        line(q, TextFormat("for (int i = 0; i < %d; i++) {", count));
+        int n = randomInt(2, 6);
+        line(q, TextFormat("for (int i = 0; i < %d; i++) {", n));
         line(q, "    TwentyThousandPoints t;");
         line(q, "}");
-        result = count;
-        mistake(q, "1", "There's a new t each time round the loop, and each one goes out of scope at the }.");
+        result = n;
+        layout(q, TextFormat("each time round the loop, t is created at the start\nand goes out of scope at the }\nthe loop runs %d times", n));
     } else {
-        int count = randomInt(2, 3);
         line(q, "{");
         line(q, "    TwentyThousandPoints a;");
         line(q, "    TwentyThousandPoints b;");
-        if (count == 3) line(q, "    TwentyThousandPoints c;");
+        result = 2;
+        if (randomInt(0, 1) == 1) {
+            line(q, "    TwentyThousandPoints c;");
+            result = 3;
+        }
         line(q, "}");
-        result = count;
-        mistake(q, "1", "Every object in the block goes out of scope at the }, and each one runs its destructor.");
+        layout(q, "every object made inside the { } goes out of scope at the }\ncount the objects");
     }
     answer(q, TextFormat("%d", result));
-    mistake(q, "0", "A destructor runs automatically when an object goes out of scope.");
-    hints(q, "A destructor runs when an object goes out of scope (slide 79).",
-             "Count the objects that are created, then reach their }.",
-             "One object = one destructor call.");
-    layout(q, "count every TwentyThousandPoints object that's created\n(a loop makes a new one each time round)\neach one runs ~TwentyThousandPoints() once");
-    note(q, "A destructor (~ClassName) runs automatically when an object goes out of scope - the place to delete what the constructor made with new (slide 79).");
+    mistake(q, "0", "A destructor runs automatically when an object goes out of scope, without being called.");
+    check(q, "SKIP");
+    hints(q, "When does an object go out of scope?",
+             "At the } that ends the block it was made in.",
+             "Each object's destructor runs once.");
+    note(q, "A destructor (~ClassName) runs automatically when an object goes out of scope, and should delete what the constructor made with new (Classes slide 79).");
     finish(q, TASK_TRACE, "How many times does ~TwentyThousandPoints() run?");
 }
 
@@ -2030,3 +1991,4 @@ bool makeQuestion(int level, MadeUpQuestion *q) {
     }
     return true;
 }
+

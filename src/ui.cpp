@@ -142,8 +142,20 @@ void drawStars(float x, float y, int count, float size) {
 // Buttons
 // ============================================================
 
+// While a window (the Slide, Rewind or player list) is open, the buttons
+// underneath it are drawn but don't react to the mouse.
+bool buttonsBlocked = false;
+
+void blockButtons(bool blocked) {
+    buttonsBlocked = blocked;
+}
+
+bool buttonsAreBlocked() {
+    return buttonsBlocked;
+}
+
 bool button(Rectangle area, const char *label) {
-    bool hover = CheckCollisionPointRec(GetMousePosition(), area);
+    bool hover = !buttonsBlocked && CheckCollisionPointRec(GetMousePosition(), area);
     Color colour = COLOUR_BUTTON;
     if (hover) colour = COLOUR_BUTTON_HOVER;
 

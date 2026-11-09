@@ -372,34 +372,116 @@ CheckResult checkCallLine(const char *typed, bool afterStep) {
 }
 
 // ============================================================
-// Saving progress: levels done on the first line, then the stars for each level
+// Players and their saved progress
 // ============================================================
+// profiles.txt lists the players (the first line says who Player 1 and
+// Player 2 were last time), and each player's progress is in its own file.
 
-void loadProgress(int *levelsDone, int stars[]) {
-    *levelsDone = 0;
-    for (int n = 0; n <= LEVEL_COUNT; n++) stars[n] = 0;
-
-    FILE *file = fopen("progress.txt", "r");
-    if (file == nullptr) return;
-
-    if (fscanf(file, "%d", levelsDone) != 1) *levelsDone = 0;
-    for (int n = 1; n <= LEVEL_COUNT; n++) {
-        if (fscanf(file, "%d", &stars[n]) != 1) stars[n] = 0;
+// progress_Name.txt (anything that isn't a letter or digit becomes _)
+void profileFileName(Profile *profile, char *out, int size) {
+    char safe[NAME_LENGTH];
+    int i = 0;
+    for (const char *p = profile->name; *p != '\0' && i < NAME_LENGTH - 1; p++) {
+        bool letterOrDigit = (*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9');
+        if (letterOrDigit) safe[i] = *p;
+        else safe[i] = '_';
+        i++;
     }
-    fclose(file);
-
-    if (*levelsDone < 0) *levelsDone = 0;
-    if (*levelsDone > LEVEL_COUNT) *levelsDone = LEVEL_COUNT;
+    safe[i] = '\0';
+    snprintf(out, size, "progress_%s.txt", safe);
 }
 
-void saveProgress(int levelsDone, int stars[]) {
-    FILE *file = fopen("progress.txt", "w");
-    if (file == nullptr) return;
+void setupProfile(Profile *profile, const char *name) {
+    snprintf(profile->name, NAME_LENGTH, "%s", name);
+    profile->levelsDone = 0;
+    for (int n = 0; n <= LEVEL_COUNT; n++) profile->stars[n] = 0;
+    profile->lessonShown = false;
+    profile->askCount = 0;
+    profile->welcomed = false;
+}
 
-    fprintf(file, "%d\n", levelsDone);
+// Reads levels done (first line) and the stars for each level
+void readProgressFile(const char *fileName, Profile *profile) {
+    FILE *file = fopen(fileName, "r");
+    if (file == nullptr) return;
+    if (fscanf(file, "%d", &profile->levelsDone) != 1) profile->levelsDone = 0;
     for (int n = 1; n <= LEVEL_COUNT; n++) {
-        fprintf(file, "%d ", stars[n]);
+        if (fscanf(file, "%d", &profile->stars[n]) != 1) profile->stars[n] = 0;
+    }
+    fclose(file);
+    if (profile->levelsDone < 0) profile->levelsDone = 0;
+    if (profile->levelsDone > LEVEL_COUNT) profile->levelsDone = LEVEL_COUNT;
+}
+
+void saveProfile(Profile *profile) {
+    char fileName[40];
+    profileFileName(profile, fileName, sizeof(fileName));
+    FILE *file = fopen(fileName, "w");
+    if (file == nullptr) return;
+    fprintf(file, "%d\n", profile->levelsDone);
+    for (int n = 1; n <= LEVEL_COUNT; n++) {
+        fprintf(file, "%d ", profile->stars[n]);
     }
     fprintf(file, "\n");
     fclose(file);
+}
+
+void deleteProfileFile(Profile *profile) {
+    char fileName[40];
+    profileFileName(profile, fileName, sizeof(fileName));
+    remove(fileName);
+}
+
+void saveProfileList(Profile profiles[], int count, int slot1, int slot2) {
+    FILE *file = fopen("profiles.txt", "w");
+    if (file == nullptr) return;
+    fprintf(file, "%d %d\n", slot1, slot2);
+    for (int i = 0; i < count; i++) {
+        fprintf(file, "%s\n", profiles[i].name);
+    }
+    fclose(file);
+}
+
+int loadProfiles(Profile profiles[], int *slot1, int *slot2) {
+    *slot1 = 0;
+    *slot2 = 0;
+    int count = 0;
+
+    FILE *file = fopen("profiles.txt", "r");
+    if (file != nullptr) {
+        if (fscanf(file, "%d %d\n", slot1, slot2) != 2) {
+            *slot1 = 0;
+            *slot2 = 0;
+        }
+        char line[64];
+        while (count < MAX_PROFILES && fgets(line, sizeof(line), file) != nullptr) {
+            // Remove the new line at the end
+            char *end = line;
+            while (*end != '\0' && *end != '\n' && *end != '\r') end++;
+            *end = '\0';
+            if (line[0] == '\0') continue;
+
+            setupProfile(&profiles[count], line);
+            char fileName[40];
+            profileFileName(&profiles[count], fileName, sizeof(fileName));
+            readProgressFile(fileName, &profiles[count]);
+            count++;
+        }
+        fclose(file);
+    } else {
+        // An older version kept one progress.txt for everyone: keep it as a player called "Old save"
+        FILE *old = fopen("progress.txt", "r");
+        if (old != nullptr) {
+            fclose(old);
+            setupProfile(&profiles[0], "Old save");
+            readProgressFile("progress.txt", &profiles[0]);
+            saveProfile(&profiles[0]);
+            count = 1;
+            saveProfileList(profiles, count, 0, 0);
+        }
+    }
+
+    if (*slot1 < 0 || *slot1 >= count) *slot1 = 0;
+    if (*slot2 < 0 || *slot2 >= count) *slot2 = *slot1;
+    return count;
 }

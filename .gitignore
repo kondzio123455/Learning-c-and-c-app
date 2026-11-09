@@ -3,5 +3,9 @@ pointer_pool
 *.o
 *.dSYM/
 
+# saved progress: every player on every computer keeps their own
+progress*.txt
+profiles.txt
+
 # macOS
 .DS_Store

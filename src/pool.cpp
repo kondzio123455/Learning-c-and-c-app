@@ -158,7 +158,7 @@ void addToLog(Game *game) {
 // Setting up a game
 // ============================================================
 
-void newGame(Game *game) {
+void newGame(Game *game, const char *name1, const char *name2) {
     // Every ball still and on the table
     for (int n = 0; n < BALL_COUNT; n++) {
         game->balls[n].number = n;
@@ -180,10 +180,8 @@ void newGame(Game *game) {
     }
 
     // Players. Groups start as S and T, but the table is open until the first pot.
-    char name1[] = "Player 1";
-    char name2[] = "Player 2";
-    copy_string(game->players[0].name, name1);
-    copy_string(game->players[1].name, name2);
+    snprintf(game->players[0].name, sizeof(game->players[0].name), "%s", name1);
+    snprintf(game->players[1].name, sizeof(game->players[1].name), "%s", name2);
     for (int p = 0; p < 2; p++) {
         game->players[p].score = 0;
         game->players[p].trayCount = 0;

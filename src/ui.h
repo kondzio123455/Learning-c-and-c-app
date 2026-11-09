@@ -32,6 +32,8 @@ void drawStar(float x, float y, float size, Color colour);
 void drawStars(float x, float y, int count, float size);
 
 // ---------- Buttons ----------
+void blockButtons(bool blocked);   // true while a window is open over the screen
+bool buttonsAreBlocked();
 bool button(Rectangle area, const char *label);   // draws it, returns true when clicked
 
 // ---------- Pieces of the game screen ----------

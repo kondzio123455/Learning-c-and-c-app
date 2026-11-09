@@ -31,6 +31,23 @@ once: the levels have been renumbered.
   upgrades: the ghost ball (Chapter 1), the ball path (Chapter 3) and the golden
   cue (Chapter 7).
 
+## Players and saving
+
+- **Everyone has their own progress.** The first time the game opens it asks for
+  your name. On the main menu, **Change** picks who is Player 1 and Player 2, or
+  adds a new player. Each player's progress is saved in its own file
+  (`progress_Name.txt`), like save slots, so a new player always starts at Level 1.
+- In a two-player game, **each player answers questions from their own level**,
+  and potting unlocks the next level for whoever took the shot. One person can
+  play both sides on their own.
+- **Welcome back:** the first time you shoot after opening the game, it says
+  where you're up to and offers a Rewind first.
+- **Rewind** (on the question panel): go back over any level you've reached, with
+  its lesson and new questions, then come back to the same shot. It never gives
+  you an extra shot.
+- A player who isn't playing can be deleted from the player list (two clicks).
+  An old `progress.txt` from an earlier version shows up as a player called "Old save".
+
 ## Studying for the test
 
 - **Every task is from a specific slide or lab question**, using the lecturer's
@@ -51,10 +68,11 @@ once: the levels have been renumbered.
   your shot, the level's two tasks come first, then a new one each time, with a
   learner note on top - never the same question twice in a row. Review mode (all
   levels done) and practice mix them in too.
-- **Lessons & practice** (main menu): re-read any concept you've reached and
-  practise it without playing pool: both versions, then new questions for as long
-  as you like, or Next level.
-- **Unlock all (revision)** on the Progress screen opens every lesson straight away.
+- **Lessons & practice** (main menu): all 54 levels are open here, so you can
+  read and practise any of them without playing pool (the game itself still
+  unlocks them one at a time). Both versions, then new questions for as long as
+  you like, with Prev and Next level. Switch player shows the other player's stars.
+- **Unlock all (revision)** on the Progress screen unlocks every level in the game for the player shown.
 
 ## Controls
 
@@ -64,11 +82,12 @@ once: the levels have been renumbered.
 | Arrow keys | Move the cursor in the code box (click to put it anywhere) |
 | Cmd/Ctrl + Left/Right, Home, End | Jump to the start or end of the line |
 | Backspace / Delete | Delete before / after the cursor |
+| Mouse wheel | Scroll a long question (a new hint scrolls into view by itself) |
 | Tab | Switch between the answer box and the call box |
 | Mouse | Aim; hold the left button to charge, let go to shoot |
 | Up / Down | Scroll the shot log (from Level 44) |
 | Esc | Back to the menu |
-| F5 | Unlock every level (for demos) |
+| F5 | Unlock every level for the player shown (for demos) |
 
 ## How answers are checked
 
@@ -89,8 +108,10 @@ When an answer is right, the game runs the real version of that code from
 All of this was checked before release: every accepted code answer compiles as
 real C++ in its code, and every trace answer was confirmed by running the code.
 The made-up questions work out their answers by running the same code (or the real
-lab function). As a check, over a thousand of them were turned into real programs,
-compiled and run, and every one printed exactly the answer the game expects.
+lab function). As a check, 810 of them (15 per level) were turned into real C++
+programs and compiled, and the 713 that print a value were run: every one printed
+exactly the answer the game expects. The rest (typed code, spot-the-bug, leak and
+destructor-count questions) were compiled and checked by hand.
 
 ## The 54 levels
 
@@ -124,9 +145,9 @@ compiled and run, and every one printed exactly the answer the game expects.
 |---|---|
 | `src/main.cpp` | The window, main menu, lessons screen and progress tree |
 | `src/play.cpp` | The game screen and practice: questions, hints, stars, shooting, banners |
-| `src/pool.cpp` | Table, balls, physics, 8-ball rules and the aim guide |
+| `src/pool.cpp` | Table, balls, physics, 8-ball rules, the aim line and ghost ball |
 | `src/effects.cpp` | Particles, floating text, screen shake, and sounds made in code |
-| `src/questions.cpp` | The answer checker, layout hints, and saving progress to `progress.txt` |
+| `src/questions.cpp` | The answer checker, layout hints, and each player's saved progress |
 | `src/practice.cpp` | Makes new questions in the lecturer's style for every level |
 | `src/lessons_pointers.cpp` | Chapters 1-4: the Pointers lecture and Lab 2 Part 1 |
 | `src/lessons_memory.cpp` | Chapters 5-6: Memory Management and Classes |
@@ -143,7 +164,7 @@ compiled and run, and every one printed exactly the answer the game expects.
 - **Change the made-up questions:** `makeLevelN` in `src/practice.cpp`.
 - **Unlock a concept after every correct answer instead of after potting:** set
   `UNLOCK_BY_POTTING` to `false` in `src/app.h`.
-- **Start again:** Progress, then Reset progress (or delete `progress.txt`).
+- **Start again:** Progress, then Reset (it only resets the player shown there).
 
 ## Credits
 

@@ -84,8 +84,26 @@ int lastLevelOfChapter(int chapter);
 CheckResult checkAnswer(Task *task, const char *typed, bool lockOn);
 CheckResult checkCallLine(const char *typed, bool afterStep);
 
-// ---------- Saving progress (progress.txt) ----------
-void loadProgress(int *levelsDone, int stars[]);
-void saveProgress(int levelsDone, int stars[]);
+// ---------- Players and their saved progress ----------
+// Everyone who plays on this computer gets their own profile and save file
+// (progress_Name.txt), like the save slots in The Farmer Was Replaced.
+const int MAX_PROFILES = 8;
+const int NAME_LENGTH = 13;      // names can be up to 12 letters
+
+struct Profile {
+    char name[NAME_LENGTH];
+    int levelsDone;
+    int stars[LEVEL_COUNT + 1];  // best stars for each level: 3 = no hints used
+    // These only last while the game is open:
+    bool lessonShown;            // has the current level's lesson been shown?
+    int askCount;                // how many times the current level has been asked
+    bool welcomed;               // has the "welcome back" message been shown?
+};
+
+void setupProfile(Profile *profile, const char *name);   // a new player, at Level 1
+void saveProfile(Profile *profile);                      // writes progress_Name.txt
+void deleteProfileFile(Profile *profile);
+int loadProfiles(Profile profiles[], int *slot1, int *slot2);            // returns how many players
+void saveProfileList(Profile profiles[], int count, int slot1, int slot2);
 
 #endif
