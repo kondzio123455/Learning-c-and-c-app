@@ -4,6 +4,7 @@
 #include "pool.h"
 #include "editor.h"
 #include "questions.h"
+#include "diagram.h"
 #include "practice.h"
 
 // Set this to false to unlock the next concept after every correct answer,
@@ -11,7 +12,23 @@
 const bool UNLOCK_BY_POTTING = true;
 
 // Which screen is showing
-enum Screen { SCREEN_MENU, SCREEN_PLAY, SCREEN_CODEX, SCREEN_PROGRESS, SCREEN_PRACTICE };
+enum Screen { SCREEN_MENU, SCREEN_PLAY, SCREEN_CODEX, SCREEN_PROGRESS, SCREEN_PRACTICE, SCREEN_TEST };
+
+// ---------- Test mode ----------
+const int TEST_LENGTH = 10;
+enum TestState { TEST_SETUP, TEST_RUNNING, TEST_RESULTS };
+
+// One test question, kept so it can be marked and shown at the end
+struct TestQuestion {
+    int level;
+    bool correct;
+    TaskKind kind;
+    char task[300];
+    char code[1600];
+    char given[400];      // what the player answered
+    char answer[400];     // the right answer
+    char why[260];        // what went wrong
+};
 
 // What the game screen is doing right now
 enum Phase {
@@ -90,6 +107,24 @@ struct App {
     CodeBox nameBox;            // where a new player types their name
     int confirmDelete;          // which player's Delete was clicked once (-1 = none)
 
+    // ---------- Pointer diagrams (after a trace question) ----------
+    Diagram diagram;
+    bool hasDiagram;            // the trace question just answered has a diagram
+    bool viewingDiagram;        // the diagram is showing
+    int diagramStep;            // how many lines it has run
+    float diagramTimer;
+    bool diagramPlaying;        // stepping on by itself
+
+    // ---------- Test mode ----------
+    bool testing;               // answering test questions: no hints, one try each
+    TestState testState;
+    bool testChapters[CHAPTER_COUNT + 1];
+    int testIndex;              // which question (0 to 9)
+    float testTime;             // seconds since the test started
+    TestQuestion testQuestions[TEST_LENGTH];
+    int testSelected;           // the result shown on the results screen
+    bool confirmStopTest;
+
     // ---------- Other screens ----------
     int codexLevel;             // the level shown in the codex
     bool confirmReset;          // reset progress needs a second click
@@ -113,6 +148,18 @@ void drawBanner(App *app);
 void startRewind(App *app, int level);
 void endRewind(App *app);
 void saveShot(App *app);       // remembers the shot's question
+void useMadeUpQuestion(App *app);
+void resetQuestion(App *app);
+void setPhase(App *app, Phase phase);
+void drawTaskArea(App *app, float x, float y, float width, float bottom);
+void updateCodePhase(App *app);
+bool drawDiagramView(App *app, float x, float y, float width, float bottom, const char *doneLabel);
+void updateDiagram(App *app, float dt);
+void drawPlayerSwitch(App *app, float x, float y);   // main.cpp
+
+// Test mode (testmode.cpp)
+void testScreen(App *app);
+void recordTestAnswer(App *app, const char *answer, CheckResult result);
 void restoreShot(App *app);    // goes back to it
 void drawSlideOverlay(App *app);   // the Slide window: what the slides say
 

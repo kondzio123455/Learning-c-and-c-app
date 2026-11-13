@@ -68,6 +68,16 @@ once: the levels have been renumbered.
   your shot, the level's two tasks come first, then a new one each time, with a
   learner note on top - never the same question twice in a row. Review mode (all
   levels done) and practice mix them in too.
+- **Pointer diagrams:** after a trace question built on the slides' data tables
+  (Levels 2, 4, 6, 11, 12, 13 and their new questions), the game runs the code
+  line by line and shows the table after each line - Name, Type, Value - with
+  arrows from each pointer to what it points at, just like slides 10-32. In the
+  game it plays straight away; in practice, click **Watch it run**.
+- **Test mode** (main menu): pick chapters and answer 10 questions, a mix of the
+  levels' own and new ones. Like the real test: no hints, no lessons or slides,
+  one try each, and a timer. At the end you get your score, and for every one you
+  missed, your answer next to the right one with what went wrong, plus a button
+  to practise that level.
 - **Lessons & practice** (main menu): all 54 levels are open here, so you can
   read and practise any of them without playing pool (the game itself still
   unlocks them one at a time). Both versions, then new questions for as long as
@@ -113,6 +123,9 @@ programs and compiled, and the 713 that print a value were run: every one printe
 exactly the answer the game expects. The rest (typed code, spot-the-bug, leak and
 destructor-count questions) were compiled and checked by hand.
 
+The diagrams were checked the same way: for the slide questions and 178 made-up
+ones, the diagram's final table (or what it prints) matches the game's answer.
+
 ## The 54 levels
 
 | Chapter | Levels |
@@ -147,6 +160,8 @@ destructor-count questions) were compiled and checked by hand.
 | `src/play.cpp` | The game screen and practice: questions, hints, stars, shooting, banners |
 | `src/pool.cpp` | Table, balls, physics, 8-ball rules, the aim line and ghost ball |
 | `src/effects.cpp` | Particles, floating text, screen shake, and sounds made in code |
+| `src/diagram.cpp` | Pointer diagrams: runs trace code line by line and draws the data table |
+| `src/testmode.cpp` | Test mode: choosing chapters, the 10 questions, and the results |
 | `src/questions.cpp` | The answer checker, layout hints, and each player's saved progress |
 | `src/practice.cpp` | Makes new questions in the lecturer's style for every level |
 | `src/lessons_pointers.cpp` | Chapters 1-4: the Pointers lecture and Lab 2 Part 1 |

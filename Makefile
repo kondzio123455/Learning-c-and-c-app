@@ -7,9 +7,9 @@ CXXFLAGS = -std=c++17 -Wall -Wextra -g $(shell pkg-config --cflags raylib)
 LIBS = $(shell pkg-config --libs raylib)
 
 SRC = src/main.cpp src/play.cpp src/practice.cpp src/pool.cpp src/effects.cpp src/ui.cpp src/editor.cpp \
-      src/questions.cpp src/lessons_pointers.cpp src/lessons_memory.cpp src/lessons_lists.cpp \
+      src/diagram.cpp src/testmode.cpp src/questions.cpp src/lessons_pointers.cpp src/lessons_memory.cpp src/lessons_lists.cpp \
       src/lab1.cpp src/lab2.cpp
-HEADERS = src/app.h src/practice.h src/pool.h src/effects.h src/ui.h src/editor.h src/questions.h src/lab1.h src/lab2.h
+HEADERS = src/app.h src/practice.h src/pool.h src/effects.h src/ui.h src/editor.h src/diagram.h src/questions.h src/lab1.h src/lab2.h
 TARGET = pointer_pool
 
 all: $(TARGET)

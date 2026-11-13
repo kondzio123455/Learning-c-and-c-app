@@ -118,6 +118,8 @@ void resetQuestion(App *app) {
 
     app->hintsShown = 0;
     app->taskScroll = 0;
+    app->hasDiagram = false;
+    app->viewingDiagram = false;
     app->chosenCount = 0;
     app->solved = false;
     app->wrongTimer = 0;
@@ -227,6 +229,13 @@ void runCode(App *app) {
 
     // 1. The answer to the question
     CheckResult result = checkAnswer(task, answer, level->noIndexing);
+
+    // Test mode: one try each, and everything is marked at the end
+    if (app->testing) {
+        recordTestAnswer(app, answer, result);
+        return;
+    }
+
     if (!result.correct) {
         setFeedback(app, result.feedback, false);
         app->wrongTimer = 0.4f;   // shake the answer box
@@ -272,6 +281,13 @@ void runCode(App *app) {
         saveProfile(app->learner);
     }
     playSound(SOUND_CORRECT, 0.6f);
+
+    // Trace questions get a pointer diagram: the data table after each line, like the slides
+    app->hasDiagram = task->kind == TASK_TRACE && buildDiagram(task->code, &app->diagram);
+    app->diagramStep = 0;
+    app->diagramTimer = 0;
+    app->diagramPlaying = true;
+    app->viewingDiagram = app->hasDiagram && !app->practising;   // in the game it plays straight away
 
     if (app->practising) {
         app->solved = true;
@@ -661,12 +677,14 @@ void drawTaskArea(App *app, float x, float y, float width, float bottom) {
     float badgeWidth = drawKindBadge(task->kind, x, y);
     int worth = 3 - app->hintsShown;
     if (worth < 1) worth = 1;
-    drawText("worth", x + badgeWidth + 12, y + 3, 14, COLOUR_MUTED);
-    drawStars(x + badgeWidth + 70, y + 11, worth, 8);
+    if (!app->testing) {
+        drawText("worth", x + badgeWidth + 12, y + 3, 14, COLOUR_MUTED);
+        drawStars(x + badgeWidth + 70, y + 11, worth, 8);
+    }
     y += 32;
 
     // Made-up questions start with a learner note: a reminder and a small example
-    if (task->note != nullptr && task->note[0] != '\0') {
+    if (task->note != nullptr && task->note[0] != '\0' && !app->testing) {
         float noteHeight = wrappedHeight(task->note, width - 20, 14) + 12;
         DrawRectangle((int)x, (int)y, (int)width, (int)noteHeight, Color{ 48, 44, 24, 255 });
         DrawRectangle((int)x, (int)y, 4, (int)noteHeight, COLOUR_ACCENT);
@@ -785,7 +803,28 @@ void drawTaskArea(App *app, float x, float y, float width, float bottom) {
     // Buttons
     if (running) return;
     float buttonY = bottom - 2;
+    if (app->testing) {
+        if (button(Rectangle{ x, buttonY, 100, 38 }, "Clear")) {
+            clearCodeBox(&app->answerBox);
+            app->chosenCount = 0;
+        }
+        if (button(Rectangle{ x + 112, buttonY, 110, 38 }, "Skip")) {
+            CheckResult skipped = { false, "You skipped this one.", -1 };
+            recordTestAnswer(app, "", skipped);
+            return;
+        }
+        const char *shortcut = "or Ctrl/Cmd + Enter";
+        drawText(shortcut, x + width - 75 - textWidth(shortcut, 11) / 2, buttonY + 41, 11, COLOUR_MUTED);
+        if (button(Rectangle{ x + width - 150, buttonY, 150, 38 }, "Submit >")) runCode(app);
+        return;
+    }
     if (app->solved) {
+        if (app->hasDiagram && button(Rectangle{ x + width - 330, buttonY, 170, 38 }, "Watch it run")) {
+            app->viewingDiagram = true;
+            app->diagramStep = 0;
+            app->diagramTimer = 0;
+            app->diagramPlaying = true;
+        }
         if (button(Rectangle{ x + width - 150, buttonY, 150, 38 }, "Next >")) nextPracticeQuestion(app);
         return;
     }
@@ -831,6 +870,13 @@ void drawCodePanel(App *app) {
     if (app->usingMadeUp) heading = TextFormat("Level %d - a new question in the same style", app->questionLevel);
     drawText(heading, x, y, 14, COLOUR_MUTED);
     drawBold(level->title, x, y + 18, 22, COLOUR_TEXT);
+    if (app->phase == PHASE_RUNNING && app->viewingDiagram) {
+        if (drawDiagramView(app, x, y + 50, width, SCREEN_HEIGHT - 52.0f, "Take the shot >")) {
+            app->viewingDiagram = false;
+            setPhase(app, PHASE_AIM);
+        }
+        return;
+    }
     drawTaskArea(app, x, y + 50, width, SCREEN_HEIGHT - 52.0f);
 }
 
@@ -958,6 +1004,50 @@ void drawSlideOverlay(App *app) {
         IsKeyPressed(KEY_ESCAPE)) {
         app->showSlide = false;
     }
+}
+
+// ============================================================
+// Pointer diagrams
+// ============================================================
+
+// Steps on one line every 0.8 seconds (until the player steps by hand)
+void updateDiagram(App *app, float dt) {
+    if (!app->diagramPlaying) return;
+    app->diagramTimer += dt;
+    if (app->diagramTimer >= 0.8f) {
+        app->diagramTimer = 0;
+        if (app->diagramStep < app->diagram.steps) app->diagramStep++;
+        else app->diagramPlaying = false;
+    }
+}
+
+// The diagram with its controls. Returns true when the player clicks doneLabel.
+bool drawDiagramView(App *app, float x, float y, float width, float bottom, const char *doneLabel) {
+    Task *task = currentTask(app);
+    drawBold("Correct! Watch it run", x, y, 20, COLOUR_GOOD);
+    y += 28;
+    y += drawWrapped(TextFormat("After line %d of %d: the data table, like the slides. Arrows show what each pointer points at.",
+                                app->diagramStep, app->diagram.steps), x, y, width, 13, COLOUR_MUTED) + 8;
+
+    BeginScissorMode((int)x - 4, (int)y, (int)width + 8, (int)(bottom - 10 - y));
+    drawDiagram(&app->diagram, task->code, app->diagramStep, x, y, width);
+    EndScissorMode();
+
+    float buttonY = bottom - 2;
+    if (button(Rectangle{ x, buttonY, 88, 38 }, "< Step")) {
+        app->diagramPlaying = false;
+        if (app->diagramStep > 0) app->diagramStep--;
+    }
+    if (button(Rectangle{ x + 94, buttonY, 88, 38 }, "Step >")) {
+        app->diagramPlaying = false;
+        if (app->diagramStep < app->diagram.steps) app->diagramStep++;
+    }
+    if (button(Rectangle{ x + 188, buttonY, 88, 38 }, "Replay")) {
+        app->diagramStep = 0;
+        app->diagramTimer = 0;
+        app->diagramPlaying = true;
+    }
+    return button(Rectangle{ x + width - 180, buttonY, 180, 38 }, doneLabel);
 }
 
 // ============================================================
@@ -1097,8 +1187,12 @@ void playScreen(App *app) {
     } else if (app->phase == PHASE_CODE) {
         updateCodePhase(app);
     } else if (app->phase == PHASE_RUNNING) {
-        app->runTimer += dt;
-        if (app->runTimer > (linesToRun(app) + 1) * SECONDS_PER_LINE) setPhase(app, PHASE_AIM);
+        if (app->viewingDiagram) {
+            updateDiagram(app, dt);   // the player moves on with "Take the shot"
+        } else {
+            app->runTimer += dt;
+            if (app->runTimer > (linesToRun(app) + 1) * SECONDS_PER_LINE) setPhase(app, PHASE_AIM);
+        }
     } else if (app->phase == PHASE_AIM) {
         updateAimPhase(app, dt);
     } else if (app->phase == PHASE_STRIKE) {
@@ -1224,7 +1318,8 @@ void practiceScreen(App *app) {
             else app->screen = SCREEN_CODEX;
             return;
         }
-        updateCodePhase(app);
+        if (app->viewingDiagram) updateDiagram(app, dt);
+        else updateCodePhase(app);
     }
 
     Level *level = getLevel(app->questionLevel);
@@ -1258,7 +1353,13 @@ void practiceScreen(App *app) {
 
     // The question on the right
     DrawRectangle(505, 88, SCREEN_WIDTH - 525, SCREEN_HEIGHT - 100, COLOUR_PANEL);
-    drawTaskArea(app, 525, 102, SCREEN_WIDTH - 565.0f, SCREEN_HEIGHT - 62.0f);
+    if (app->viewingDiagram) {
+        if (drawDiagramView(app, 525, 102, SCREEN_WIDTH - 565.0f, SCREEN_HEIGHT - 62.0f, "Back to the question")) {
+            app->viewingDiagram = false;
+        }
+    } else {
+        drawTaskArea(app, 525, 102, SCREEN_WIDTH - 565.0f, SCREEN_HEIGHT - 62.0f);
+    }
 
     if (app->phaseTimer < 0.25f) {
         DrawRectangle(505, 88, SCREEN_WIDTH - 525, SCREEN_HEIGHT - 100, Fade(COLOUR_PANEL, 1 - app->phaseTimer / 0.25f));

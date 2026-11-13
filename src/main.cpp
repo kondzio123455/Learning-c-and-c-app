@@ -31,6 +31,18 @@ void setupApp(App *app) {
     app->showRewind = false;
     app->rewinding = false;
     app->shotSaved = false;
+    app->hasDiagram = false;
+    app->viewingDiagram = false;
+    app->diagramStep = 0;
+    app->diagramTimer = 0;
+    app->diagramPlaying = false;
+    app->testing = false;
+    app->testState = TEST_SETUP;
+    for (int c = 0; c <= CHAPTER_COUNT; c++) app->testChapters[c] = true;
+    app->testIndex = 0;
+    app->testTime = 0;
+    app->testSelected = 0;
+    app->confirmStopTest = false;
     app->questionLevel = 1;
     app->version = 0;
     app->reviewMode = false;
@@ -310,6 +322,11 @@ void menuScreen(App *app) {
         app->screen = SCREEN_PLAY;
     }
     if (button(Rectangle{ x, y + 64, 260, 48 }, "Lessons & practice")) app->screen = SCREEN_CODEX;
+    if (button(Rectangle{ x + 280, y + 64, 200, 48 }, "Test mode")) {
+        if (app->gameInProgress && !app->shotSaved) saveShot(app);   // so Continue comes back to the same shot
+        app->testState = TEST_SETUP;
+        app->screen = SCREEN_TEST;
+    }
     if (button(Rectangle{ x, y + 128, 260, 48 }, "Progress")) {
         app->confirmReset = false;
         app->confirmUnlockAll = false;
@@ -529,6 +546,7 @@ int main() {
         else if (app.screen == SCREEN_CODEX) codexScreen(&app);
         else if (app.screen == SCREEN_PROGRESS) progressScreen(&app);
         else if (app.screen == SCREEN_PRACTICE) practiceScreen(&app);
+        else if (app.screen == SCREEN_TEST) testScreen(&app);
 
         // Effects go on top of every screen
         drawParticles();
