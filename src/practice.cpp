@@ -547,97 +547,115 @@ void makeLevel11(MadeUpQuestion *q) {
 }
 
 void makeLevel12(MadeUpQuestion *q) {
-    int v[4];
-    differentNumbers(v, 4, 1, 50);
-    int a[5] = { 0, 0, 0, 0, 0 };
-    int start = randomInt(1, 3);
+    // Slides 24-32 use float a[4] and values like 3.14 and 9.0
+    float values[8] = { 3.14f, 9.0f, 6.0f, 7.0f, 2.5f, 1.5f, 4.0f, 8.0f };
+    int pick[4];
+    differentNumbers(pick, 4, 0, 7);
+    float a[4] = { 0, 0, 0, 0 };
+    bool written[4] = { false, false, false, false };
+    int start = randomInt(1, 2);
     int back = randomInt(1, start + 1);
     int afterBack = start + 1 - back;
-    int forward = randomInt(1, 4 - afterBack);
+    int forward = randomInt(1, 3 - afterBack);
 
-    line(q, "int a[5] = {0, 0, 0, 0, 0};");
-    line(q, "int* ptr;");
-    line(q, TextFormat("ptr = &(a[%d]);", start));   int *ptr = &(a[start]);
-    line(q, TextFormat("*ptr = %d;", v[0]));          *ptr = v[0];
-    line(q, "ptr++;");                                ptr++;
-    line(q, TextFormat("*ptr = %d;", v[1]));          *ptr = v[1];
-    line(q, TextFormat("ptr = ptr - %d;", back));     ptr = ptr - back;
-    line(q, TextFormat("*ptr = %d;", v[2]));          *ptr = v[2];
-    line(q, TextFormat("ptr += %d;", forward));       ptr += forward;
-    line(q, TextFormat("*ptr = %d;", v[3]));          *ptr = v[3];
+    line(q, "float a[4];");
+    line(q, "float* ptr;");
+    line(q, TextFormat("ptr = &(a[%d]);", start));         float *ptr = &(a[start]);
+    line(q, TextFormat("*ptr = %g;", values[pick[0]]));     *ptr = values[pick[0]]; written[ptr - a] = true;
+    line(q, "ptr++;");                                      ptr++;
+    line(q, TextFormat("*ptr = %g;", values[pick[1]]));     *ptr = values[pick[1]]; written[ptr - a] = true;
+    line(q, TextFormat("ptr = ptr - %d;", back));           ptr = ptr - back;
+    line(q, TextFormat("*ptr = %g;", values[pick[2]]));     *ptr = values[pick[2]]; written[ptr - a] = true;
+    line(q, TextFormat("ptr += %d;", forward));             ptr += forward;
+    line(q, TextFormat("*ptr = %g;", values[pick[3]]));     *ptr = values[pick[3]]; written[ptr - a] = true;
 
-    int ask = randomInt(0, 4);
+    // Only ask about an element that was written to (the others are never set)
+    int ask = randomInt(0, 3);
+    while (!written[ask]) ask = randomInt(0, 3);
     check(q, TextFormat("cout << a[%d];", ask));
-    answer(q, TextFormat("%d", a[ask]));
-    answer(q, TextFormat("a[%d]=%d", ask, a[ask]));
+    answer(q, TextFormat("%g", a[ask]));
+    if (a[ask] == (int)a[ask]) answer(q, TextFormat("%d.0", (int)a[ask]));
+    answer(q, TextFormat("a[%d]=%g", ask, a[ask]));
     for (int k = 0; k < 4; k++) {
-        mistake(q, TextFormat("%d", v[k]), "That value went into a different element. Track which element ptr points at after every move.");
+        if (values[pick[k]] != a[ask]) {
+            mistake(q, TextFormat("%g", values[pick[k]]), "That value went into a different element, or was written over later. Track which element ptr points at after every move.");
+        }
     }
-    mistake(q, "0", "Something is written into this element. Track where ptr is after each move.");
-    hints(q, "Write a table with a[0] to a[4], and where ptr points.",
+    hints(q, "Write a table with a[0] to a[3], and where ptr points.",
              "ptr++ moves one element forward; ptr - n and ptr += n move by n.",
              "*ptr = ... writes into the element ptr points at right then.");
-    layout(q, TextFormat("ptr = &(a[%d])     -> a[%d] = %d\nptr++              -> ptr at a[%d]\nptr = ptr - %d      -> ptr at a[?]\n... keep going", start, start, v[0], start + 1, back));
+    layout(q, TextFormat("ptr = &(a[%d])     -> a[%d] = %g\nptr++              -> ptr at a[%d]\nptr = ptr - %d      -> ptr at a[?]\n... keep going", start, start, values[pick[0]], start + 1, back));
     note(q, "ptr++ moves to the next element, ptr = ptr - 3 moves back three, ptr += 2 moves forward two. *ptr = ... writes wherever ptr is (slides 24-32).");
     finish(q, TASK_TRACE, TextFormat("Trace it like slides 24-32. What is a[%d] at the end?", ask));
 }
 
 void makeLevel13(MadeUpQuestion *q) {
-    const char *types[3] = { "int", "double", "Ball" };
-    int sizes[3] = { 4, 8, 24 };
-    int t = randomInt(0, 2);
+    // Slides 34-35: a double takes 4 memory slots, so ptr + 1 is 4 slots on.
+    // (The game's own Ball is 24 bytes, as on Level 13's second task.)
+    bool useBall = randomInt(0, 2) == 0;
+    const char *type = "double";
+    int size = 4;
+    if (useBall) {
+        type = "Ball";
+        size = 24;
+    }
     int base = randomInt(10, 50) * 100;
-    int step = randomInt(1, 9);
-    int result = base + step * sizes[t];
+    int step = randomInt(1, 3);
+    if (useBall) step = randomInt(1, 15);
+    int count = useBall ? 16 : 4;
+    int result = base + step * size;
 
-    line(q, TextFormat("%s arr[10];          // starts at address %d", types[t], base));
-    line(q, TextFormat("%s *ptr = arr + %d;", types[t], step));
+    line(q, TextFormat("%s a[%d];          // starts at address %d", type, count, base));
+    line(q, TextFormat("%s *ptr = a + %d;", type, step));
     line(q, "// what address does ptr hold?");
-    // The tests check this with the real sizes: how many bytes ptr is past arr
-    check(q, TextFormat("cout << %d + (int)((char*)ptr - (char*)arr);", base));
+    check(q, TextFormat("cout << %d + (int)((char*)ptr - (char*)a) / (int)sizeof(%s) * %d;", base, type, size));
     answer(q, TextFormat("%d", result));
-    mistake(q, TextFormat("%d", base + step), TextFormat("+ %d moves %d whole elements, not %d bytes.", step, step, step));
-    mistake(q, TextFormat("%d", base + (step + 1) * sizes[t]), "That's one element too far.");
-    hints(q, "Pointer arithmetic counts in elements, not bytes.",
-             TextFormat("Each element here is %d bytes.", sizes[t]),
-             "start address + steps * size of one element");
-    layout(q, TextFormat("address = %d + %d * sizeof(%s)\nsizeof(%s) = %d here", base, step, types[t], types[t], sizes[t]));
-    note(q, "+ and - move by the size of the type the pointer points at (slide 35): 1000 + sizeof(double) = 1004 on the slide.");
-    finish(q, TASK_TRACE, TextFormat("On this computer a %s is %d bytes. What address does ptr hold?", types[t], sizes[t]));
+    mistake(q, TextFormat("%d", base + step), TextFormat("+ %d moves %d whole elements, not %d slots.", step, step, step));
+    mistake(q, TextFormat("%d", base + (step + 1) * size), "That's one element too far.");
+    hints(q, "Pointer arithmetic counts in elements, not slots.",
+             TextFormat("Here each %s takes %d slots.", type, size),
+             "start address + steps * slots for one element");
+    layout(q, TextFormat("address = %d + %d * (slots for one %s)\none %s = %d slots here", base, step, type, type, size));
+    note(q, "+ and - move by the size of the type the pointer points at (slide 35): 1000 + sizeof(double) = 1000 + 4 = 1004 on the slide.");
+    if (useBall) finish(q, TASK_TRACE, TextFormat("In this game each Ball is 24 bytes. a starts at address %d. What address does ptr hold?", base));
+    else finish(q, TASK_TRACE, TextFormat("Like slide 35, each double takes 4 slots. a starts at address %d. What address does ptr hold?", base));
 }
 
 void makeLevel14(MadeUpQuestion *q) {
+    // Slide 36: print the numbers using pointer arithmetic
     int arr[6];
     differentNumbers(arr, 6, 1, 30);
-    int len = randomInt(5, 6);
-    int start = randomInt(0, 1);
-    int step = randomInt(1, 2);
+    int len = randomInt(4, 6);
+    int start = randomInt(0, 2);
 
-    if (len == 5) line(q, TextFormat("int arr[] = {%d, %d, %d, %d, %d};", arr[0], arr[1], arr[2], arr[3], arr[4]));
-    else line(q, TextFormat("int arr[] = {%d, %d, %d, %d, %d, %d};", arr[0], arr[1], arr[2], arr[3], arr[4], arr[5]));
-    line(q, "int* ptr = arr;");
-    line(q, TextFormat("int len = %d;", len));
-    if (step == 1) line(q, TextFormat("for (int i = %d; i < len; i++) {", start));
-    else line(q, TextFormat("for (int i = %d; i < len; i += 2) {", start));
+    char numbers[100] = "";
+    for (int i = 0; i < len; i++) {
+        int length = (int)strlen(numbers);
+        snprintf(numbers + length, sizeof(numbers) - length, i == 0 ? "%d" : ",%d", arr[i]);
+    }
+    line(q, TextFormat("int arr[] = {%s};", numbers));
+    line(q, "int* ptr= arr;");
+    line(q, TextFormat("int len=%d;", len));
+    line(q, TextFormat("for (int i = %d; i < len; i++) {", start));
     line(q, "    cout << *(ptr + i) << \" \";");
     line(q, "}");
 
     int printed[6];
     int count = 0;
-    for (int i = start; i < len; i += step) {
+    for (int i = start; i < len; i++) {
         printed[count] = *(arr + i);
         count++;
     }
     listAnswer(q, printed, count);
-    int all[6];
-    for (int i = 0; i < len; i++) all[i] = arr[i];
-    char allText[100];
-    joinNumbers(all, len, allText, sizeof(allText));
-    mistake(q, allText, "Not every element is printed. Check where i starts and how much it goes up by.");
+    if (start != 0) {
+        char allText[100];
+        joinNumbers(arr, len, allText, sizeof(allText));
+        mistake(q, allText, "Look at where i starts: not every element is printed.");
+    }
     hints(q, "*(ptr + i) is element i.",
-             "Which values does i take? Check its start and step.",
+             "Which values does i take? Check where it starts and where it stops.",
              "Print the element for each of those values of i.");
-    layout(q, TextFormat("i takes the values %d, %d, ... while i < %d\nfor each one, print element i", start, start + step, len));
+    layout(q, TextFormat("i goes %d, %d, ... while i < %d\nfor each one, print element i", start, start + 1, len));
     note(q, "*(ptr + i) is element i, without [ ] (slide 36). Type the numbers in order with spaces between them.");
     finish(q, TASK_TRACE, "What does this print? (numbers with spaces between)");
 }
@@ -1135,29 +1153,29 @@ void makeLevel29(MadeUpQuestion *q) {
 }
 
 void makeLevel30(MadeUpQuestion *q) {
-    int v[2];
-    differentNumbers(v, 2, 5, 60);
+    // Slides 55-56: the lecture's Add, called through a function pointer
+    int v[3];
+    differentNumbers(v, 3, 5, 60);
     def(q, "int Add(int num1, int num2)");
     def(q, "{");
     def(q, "    return num1 + num2;");
     def(q, "}");
-    def(q, "int Subtract(int num1, int num2)");
-    def(q, "{");
-    def(q, "    return num1 - num2;");
-    def(q, "}");
-    bool useAdd = randomInt(0, 1) == 1;
     line(q, "int (*functionPtr)(int, int);");
-    line(q, useAdd ? "functionPtr = Add;" : "functionPtr = Subtract;");
+    line(q, "functionPtr = Add;");
     line(q, TextFormat("int result = functionPtr(%d, %d);", v[0], v[1]));
-    int result = v[0] - v[1];
-    if (useAdd) result = v[0] + v[1];
+    int result = v[0] + v[1];
+    bool twice = randomInt(0, 1) == 1;
+    if (twice) {
+        line(q, TextFormat("result = functionPtr(result, %d);", v[2]));
+        result = result + v[2];
+        mistake(q, TextFormat("%d", v[0] + v[1]), "result is changed again on the last line, by calling Add through the pointer a second time.");
+    }
     check(q, "cout << result;");
     numberAnswer(q, "result", result);
-    mistake(q, TextFormat("%d", useAdd ? v[0] - v[1] : v[0] + v[1]), "Check which function was assigned to functionPtr.");
-    hints(q, "functionPtr points at one of the two functions.",
-             "Calling functionPtr(a, b) calls that function.",
-             "Work out what that function returns for these numbers.");
-    layout(q, TextFormat("functionPtr = %s;\nso functionPtr(%d, %d) is the same as %s(%d, %d)", useAdd ? "Add" : "Subtract", v[0], v[1], useAdd ? "Add" : "Subtract", v[0], v[1]));
+    hints(q, "functionPtr points at Add.",
+             "Calling functionPtr(a, b) calls Add(a, b).",
+             twice ? "Work out the first call, then use that result in the second." : "So result is Add of the two numbers.");
+    layout(q, TextFormat("functionPtr = Add;\nso functionPtr(%d, %d) is the same as Add(%d, %d)%s", v[0], v[1], v[0], v[1], twice ? "\nthen Add(result, ...) again" : ""));
     note(q, "A function pointer stores a function's address: functionPtr = Add; then functionPtr(20, 10) calls Add (Memory slides 55-56).");
     finish(q, TASK_TRACE, "What is result?");
 }
@@ -1314,8 +1332,8 @@ void makeLevel35(MadeUpQuestion *q) {
     def(q, "    Point() {");
     def(q, TextFormat("        this->x = %d; this->y = %d;", v[0], v[1]));
     def(q, "    }");
-    def(q, "    Point(double newX, double newY) {");
-    def(q, "        this->x = newX; this->y = newY;");
+    def(q, "    Point(double nx, double ny) {");
+    def(q, "        this->x = nx; this->y = ny;");
     def(q, "    }");
     def(q, "};");
     line(q, "Point p;");
@@ -1328,9 +1346,9 @@ void makeLevel35(MadeUpQuestion *q) {
         if (k != pick) mistake(q, TextFormat("%d", v[k]), "Check which constructor each Point uses, and which member is asked for.");
     }
     hints(q, "Point p; uses the constructor with no arguments.",
-             "Point q(a, b); uses the one with two arguments.",
+             "Point q(a, b); uses Point(double nx, double ny).",
              "this->x is the x of the object being made.");
-    layout(q, TextFormat("p: Point()            -> x = %d, y = %d\nq: Point(newX, newY)  -> x = newX, y = newY", v[0], v[1]));
+    layout(q, TextFormat("p: Point()            -> x = %d, y = %d\nq: Point(nx, ny)      -> x = nx, y = ny", v[0], v[1]));
     note(q, "Inside a method, this points at the object the method is working on, so this->x is that object's x (Classes slide 61).");
     finish(q, TASK_TRACE, TextFormat("What is %s?", asks[pick]));
 }

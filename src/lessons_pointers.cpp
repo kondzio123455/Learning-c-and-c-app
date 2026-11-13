@@ -754,9 +754,9 @@ void setupPointerLessons() {
     level->explanation = "+ and - move by the size of the type the pointer points at. On slide 35 a double takes 4 memory slots, "
                          "so if ptr is at address 1000, ptr + 1 is at 1000 + sizeof(double) = 1004, not 1001. In this game "
                          "each Ball is 24 bytes, so balls + 14 is at 1000 + 14 * 24 = 1336.";
-    level->example = "// an int takes 4 bytes, and arr starts at address 2000\n"
-                     "int *p = arr;\n"
-                     "// p + 1 is at 2004, p + 2 is at 2008";
+    level->example = "// the memory slots from the slides: a char takes 1 slot\n"
+                     "// 1004: a[0] 'a'   1005: a[1] 'b'   1006: a[2] 'c'\n"
+                     "char *ptr = a;   // ptr + 1 is 1005, ptr + 2 is 1006";
     level->inGame = "Your call line changes now: [ ] is locked, so call your ball with pointer arithmetic: Ball *target = balls + N;";
     level->slideTitle = "Pointers lecture, slides 34-35: More Pointer Arithmetic";
     level->slideText = "Slide 34:\n"
