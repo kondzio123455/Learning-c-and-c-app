@@ -9,3 +9,6 @@ profiles.txt
 
 # macOS
 .DS_Store
+
+# Windows build
+*.exe

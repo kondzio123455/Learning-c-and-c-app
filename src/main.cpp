@@ -243,6 +243,9 @@ void drawPlayerSwitch(App *app, float x, float y) {
     }
 }
 
+bool isFullScreen();
+void toggleFullScreen();
+
 // ============================================================
 // Main menu
 // ============================================================
@@ -333,6 +336,7 @@ void menuScreen(App *app) {
         app->screen = SCREEN_PROGRESS;
     }
     if (button(Rectangle{ x, y + 192, 260, 48 }, "Quit")) app->quit = true;
+    if (button(Rectangle{ x + 280, y + 192, 200, 48 }, isFullScreen() ? "Window (F11)" : "Full screen (F11)")) toggleFullScreen();
 
     // Each player's progress (once, if the same person plays both sides)
     for (int s = 0; s < 2; s++) {
@@ -512,14 +516,34 @@ void progressScreen(App *app) {
 }
 
 // ============================================================
+// Full screen
+// ============================================================
+// The game is laid out for 1280 x 720. Each frame is drawn at that size into
+// a texture, then stretched to fill the window (keeping its shape, with black
+// bars if the screen is a different shape). The mouse is scaled to match, so
+// every button still lines up.
+
+void toggleFullScreen() {
+    ToggleBorderlessWindowed();
+}
+
+bool isFullScreen() {
+    return IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE);
+}
+
+// ============================================================
 // main
 // ============================================================
 
 int main() {
-    SetConfigFlags(FLAG_MSAA_4X_HINT);   // smoother circles
+    SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);   // smoother circles, and the window can change size
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Pointer Pool - learn C and C++ pointers");
     SetExitKey(KEY_NULL);                // Esc goes back instead of closing the window
     SetTargetFPS(60);                    // the friction is tuned for 60 frames per second
+    toggleFullScreen();                  // start in full screen (F11 switches back)
+
+    RenderTexture2D frame = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
+    SetTextureFilter(frame.texture, TEXTURE_FILTER_BILINEAR);   // smooth when stretched
 
     loadFonts();
     loadSounds();
@@ -540,7 +564,19 @@ int main() {
             saveProfile(app.learner);
         }
 
-        BeginDrawing();
+        // F11 switches between full screen and a window
+        if (IsKeyPressed(KEY_F11)) toggleFullScreen();
+
+        // How much to stretch the 1280 x 720 frame, and where it goes on the screen
+        float scaleX = (float)GetScreenWidth() / SCREEN_WIDTH;
+        float scaleY = (float)GetScreenHeight() / SCREEN_HEIGHT;
+        float scale = scaleX < scaleY ? scaleX : scaleY;
+        float offsetX = (GetScreenWidth() - SCREEN_WIDTH * scale) / 2;
+        float offsetY = (GetScreenHeight() - SCREEN_HEIGHT * scale) / 2;
+        SetMouseOffset((int)-offsetX, (int)-offsetY);   // so GetMousePosition() gives game coordinates
+        SetMouseScale(1 / scale, 1 / scale);
+
+        BeginTextureMode(frame);
         if (app.screen == SCREEN_MENU) menuScreen(&app);
         else if (app.screen == SCREEN_PLAY) playScreen(&app);
         else if (app.screen == SCREEN_CODEX) codexScreen(&app);
@@ -552,9 +588,18 @@ int main() {
         drawParticles();
         drawFloatingTexts();
         drawBanner(&app);
+        EndTextureMode();
+
+        // Stretch the frame to fill the screen (textures are stored upside down, hence -SCREEN_HEIGHT)
+        BeginDrawing();
+        ClearBackground(BLACK);
+        Rectangle source = { 0, 0, (float)SCREEN_WIDTH, (float)-SCREEN_HEIGHT };
+        Rectangle dest = { offsetX, offsetY, SCREEN_WIDTH * scale, SCREEN_HEIGHT * scale };
+        DrawTexturePro(frame.texture, source, dest, Vector2{ 0, 0 }, 0, WHITE);
         EndDrawing();
     }
 
+    UnloadRenderTexture(frame);
     unloadTableTextures();
     unloadSounds();
     unloadFonts();

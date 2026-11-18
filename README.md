@@ -96,6 +96,7 @@ once: the levels have been renumbered.
 | Tab | Switch between the answer box and the call box |
 | Mouse | Aim; hold the left button to charge, let go to shoot |
 | Up / Down | Scroll the shot log (from Level 44) |
+| F11 | Switch between full screen and a window (the game starts in full screen; there's also a button on the main menu) |
 | Esc | Back to the menu |
 | F5 | Unlock every level for the player shown (for demos) |
 
