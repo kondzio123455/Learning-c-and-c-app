@@ -1,4 +1,5 @@
 #include "app.h"
+#include "guide.h"
 #include "rlgl.h"
 #include "ui.h"
 #include "effects.h"
@@ -118,6 +119,8 @@ void resetQuestion(App *app) {
     app->callBox.focused = false;
 
     app->hintsShown = 0;
+    app->wrongCount = 0;
+    app->guideStep = 0;
     app->taskScroll = 0;
     app->hasDiagram = false;
     app->viewingDiagram = false;
@@ -238,7 +241,16 @@ void runCode(App *app) {
     }
 
     if (!result.correct) {
-        setFeedback(app, result.feedback, false);
+        app->wrongCount++;
+        if (app->guideStep > 0) {
+            char progress[300];
+            guideProgress(task, answer, progress, sizeof(progress));
+            char both[500];
+            snprintf(both, sizeof(both), "%s\n%s", result.feedback, progress);
+            setFeedback(app, both, false);
+        } else {
+            setFeedback(app, result.feedback, false);
+        }
         app->wrongTimer = 0.4f;   // shake the answer box
         app->taskScroll = 100000; // scroll down to the explanation (it's limited to the end next frame)
         playSound(SOUND_WRONG, 0.5f);
@@ -276,7 +288,7 @@ void runCode(App *app) {
 
     // Stars: 3 with no hints, 2 with one hint, 1 with more. The best result is kept.
     int earned = 3 - app->hintsShown;
-    if (earned < 1) earned = 1;
+    if (earned < 1 || app->guideStep > 0) earned = 1;   // a guided solve: come back to this one
     if (earned > app->learner->stars[app->questionLevel]) {
         app->learner->stars[app->questionLevel] = earned;
         saveProfile(app->learner);
@@ -678,6 +690,7 @@ void drawTaskArea(App *app, float x, float y, float width, float bottom) {
     float badgeWidth = drawKindBadge(task->kind, x, y);
     int worth = 3 - app->hintsShown;
     if (worth < 1) worth = 1;
+    if (app->guideStep > 0) worth = 1;   // a guided solve is worth 1 star
     if (!app->testing) {
         drawText("worth", x + badgeWidth + 12, y + 3, 14, COLOUR_MUTED);
         drawStars(x + badgeWidth + 70, y + 11, worth, 8);
@@ -777,6 +790,29 @@ void drawTaskArea(App *app, float x, float y, float width, float bottom) {
         }
     }
 
+    // Guided help (practice): the clues so far
+    bool canGuide = app->practising && !app->testing;
+    if (canGuide && app->guideStep > 0) {
+        drawText(TextFormat("Guided help - clue %d of %d:", app->guideStep, guideClueCount(task)), x, y + 4, 14, COLOUR_GOOD);
+        y += 24;
+        for (int step = 1; step <= app->guideStep; step++) {
+            char clue[600];
+            guideClue(task, task->code, step, clue, sizeof(clue));
+            if (guideClueIsCode(task, step)) {
+                float clueHeight = countLines(clue) * lineHeight(14) + 12;
+                DrawRectangle((int)x, (int)y, (int)width, (int)clueHeight, COLOUR_CODE_BG);
+                DrawRectangleLinesEx(Rectangle{ x, y, width, clueHeight }, 1, Fade(COLOUR_GOOD, 0.6f));
+                drawCode(clue, x + 10, y + 6, 14, width - 20);
+                y += clueHeight + 6;
+            } else {
+                y += drawWrapped(TextFormat("%d. %s", step, clue), x, y, width, 14, COLOUR_GOOD) + 4;
+            }
+        }
+    } else if (canGuide && !app->solved && app->wrongCount >= GUIDE_AFTER) {
+        y += drawWrapped(TextFormat("Stuck? That's %d tries. Click Guide me below and it'll lead you to the answer, one clue at a time.",
+                                    app->wrongCount), x, y + 4, width, 14, COLOUR_GOOD) + 8;
+    }
+
     // Feedback: why it's wrong (red) or "Correct!" (green)
     if (app->feedback[0] != '\0') {
         Color colour = COLOUR_BAD;
@@ -843,6 +879,15 @@ void drawTaskArea(App *app, float x, float y, float width, float bottom) {
         }
     } else {
         drawText("No more hints", x + 120, buttonY + 11, 14, COLOUR_MUTED);
+    }
+    // Guide me (practice, after GUIDE_AFTER wrong tries), then one clue at a time
+    if (canGuide && (app->wrongCount >= GUIDE_AFTER || app->guideStep > 0) && app->guideStep < guideClueCount(task)) {
+        const char *guideLabel = "Guide me";
+        if (app->guideStep > 0) guideLabel = TextFormat("Next clue (%d/%d)", app->guideStep + 1, guideClueCount(task));
+        if (button(Rectangle{ x + 274, buttonY, 170, 38 }, guideLabel)) {
+            app->guideStep++;
+            app->taskScroll = 100000;   // show the new clue
+        }
     }
     const char *shortcut = "or Ctrl/Cmd + Enter";
     drawText(shortcut, x + width - 65 - textWidth(shortcut, 11) / 2, buttonY + 41, 11, COLOUR_MUTED);

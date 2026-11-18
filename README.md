@@ -58,6 +58,12 @@ once: the levels have been renumbered.
 - **No answers are given away.** A wrong answer explains what went wrong, not the
   fix. Hints appear only when you click Hint: three, each more specific, then a
   last one that shows the layout of the answer with blanks (or a part-done trace).
+- **Guide me** (practice): after 10 wrong tries, a Guide me button appears. It
+  gives clues one at a time that lead to the answer (part of the code, a range
+  for a trace, a few lines for find-the-bug, or the right lines in order), all
+  worked out from the question's own answer. While guided, each wrong answer
+  also says how close it is ("right up to...", "too high"). A guided solve
+  earns 1 star, so you know to come back to it.
 - **Stars:** 3 for solving without hints, 2 with one hint, 1 with more. Your best
   is kept.
 - **The Slide button** shows what the slides (or lab sheet) actually say for that
@@ -78,6 +84,15 @@ once: the levels have been renumbered.
   one try each, and a timer. At the end you get your score, and for every one you
   missed, your answer next to the right one with what went wrong, plus a button
   to practise that level.
+- **Exam mode** (main menu): practice for Coding Exam 2. 6 questions in 1 hour
+  (2 from Lab 1, 3 from Lab 2 Part 1 and 1 linked list question), where you
+  write each whole function and a premade main in the lecturer's style tests it,
+  printing yes or no for each test. Your code is really compiled (with g++ or
+  clang++) and run, so you see real compiler errors, crashes and output. At the
+  end every question is marked, and you can compare your code with a correct
+  answer. You can also practise any one question with no timer. All 28 questions
+  were checked: each correct answer passes every test, and each lab starter stub
+  fails. On Windows, start the game from the MSYS2 UCRT64 terminal so g++ is found.
 - **Lessons & practice** (main menu): all 54 levels are open here, so you can
   read and practise any of them without playing pool (the game itself still
   unlocks them one at a time). Both versions, then new questions for as long as
@@ -163,6 +178,9 @@ ones, the diagram's final table (or what it prints) matches the game's answer.
 | `src/pool.cpp` | Table, balls, physics, 8-ball rules, the aim line and ghost ball |
 | `src/effects.cpp` | Particles, floating text, screen shake, and sounds made in code |
 | `src/diagram.cpp` | Pointer diagrams: runs trace code line by line and draws the data table |
+| `src/guide.cpp` | Guided help in practice: the clues and the "how close" check |
+| `src/exam.cpp` | Exam mode: the 1-hour exam, compiling and running your code, and the marking |
+| `src/exam_questions.cpp` | The exam's questions from Lab 1 and Lab 2, with their premade mains and correct answers |
 | `src/testmode.cpp` | Test mode: choosing chapters, the 10 questions, and the results |
 | `src/questions.cpp` | The answer checker, layout hints, and each player's saved progress |
 | `src/practice.cpp` | Makes new questions in the lecturer's style for every level |

@@ -12,3 +12,10 @@ profiles.txt
 
 # Windows build
 *.exe
+
+# exam mode's working files
+exam_test*
+exam_output.txt
+exam_compile.txt
+exam_check.txt
+your_code

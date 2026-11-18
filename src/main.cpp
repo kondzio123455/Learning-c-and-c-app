@@ -331,6 +331,10 @@ void menuScreen(App *app) {
         app->testState = TEST_SETUP;
         app->screen = SCREEN_TEST;
     }
+    if (button(Rectangle{ x + 280, y + 128, 200, 48 }, "Exam mode")) {
+        if (app->gameInProgress && !app->shotSaved) saveShot(app);   // so Continue comes back to the same shot
+        app->screen = SCREEN_EXAM;
+    }
     if (button(Rectangle{ x, y + 128, 260, 48 }, "Progress")) {
         app->confirmReset = false;
         app->confirmUnlockAll = false;
@@ -609,6 +613,7 @@ int main() {
         else if (app.screen == SCREEN_PROGRESS) progressScreen(&app);
         else if (app.screen == SCREEN_PRACTICE) practiceScreen(&app);
         else if (app.screen == SCREEN_TEST) testScreen(&app);
+        else if (app.screen == SCREEN_EXAM) examScreen(&app);
 
         // Effects go on top of every screen
         drawParticles();

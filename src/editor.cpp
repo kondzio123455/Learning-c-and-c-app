@@ -13,6 +13,9 @@ void setupCodeBox(CodeBox *box, int maxLines, const char *placeholder) {
     box->area = Rectangle{ 0, 0, 0, 0 };
     box->textX = 0;
     box->textY = 0;
+    box->size = CODE_SIZE;
+    box->codeMode = false;
+    box->firstLine = 0;
     clearCodeBox(box);
 }
 
@@ -20,6 +23,7 @@ void clearCodeBox(CodeBox *box) {
     box->text[0] = '\0';
     box->length = 0;
     box->cursor = 0;
+    box->firstLine = 0;
 }
 
 int countLines(const char *text) {
@@ -84,8 +88,9 @@ void moveUpOrDown(CodeBox *box, bool up) {
 
 // Every character is the same width, so the click's column is just x / charWidth
 void placeCursorAt(CodeBox *box, Vector2 mouse) {
-    int line = (int)((mouse.y - box->textY) / lineHeight(CODE_SIZE));
-    int column = (int)((mouse.x - box->textX) / charWidth(CODE_SIZE) + 0.5f);
+    int line = (int)((mouse.y - box->textY) / lineHeight(box->size));
+    int column = (int)((mouse.x - box->textX) / charWidth(box->size) + 0.5f);
+    if (box->codeMode) line += box->firstLine;
     if (line < 0) line = 0;
     if (column < 0) column = 0;
 
@@ -112,12 +117,64 @@ void updateCodeBox(CodeBox *box) {
     // Typed characters (GetCharPressed handles Shift for us)
     int key = GetCharPressed();
     while (key > 0) {
+        // codeMode: a } typed on a line of only spaces moves back one indent first
+        if (key == '}' && box->codeMode) {
+            int start = lineStart(box, box->cursor);
+            bool onlySpaces = box->cursor - start >= 4;
+            for (int i = start; i < box->cursor; i++) {
+                if (box->text[i] != ' ') onlySpaces = false;
+            }
+            if (onlySpaces) {
+                for (int i = 0; i < 4; i++) {
+                    box->cursor--;
+                    removeChar(box, box->cursor);
+                }
+            }
+        }
         if (key >= 32 && key <= 126) insertChar(box, (char)key);
         key = GetCharPressed();
     }
 
     // Enter starts a new line (if the box has room for one)
-    if (keyPressed(KEY_ENTER) && countLines(box->text) < box->maxLines) insertChar(box, '\n');
+    bool control = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL) ||
+                   IsKeyDown(KEY_LEFT_SUPER) || IsKeyDown(KEY_RIGHT_SUPER);
+    if (keyPressed(KEY_ENTER) && !control && countLines(box->text) < box->maxLines) {
+        if (box->codeMode) {
+            // Auto-indent: the new line starts with the same spaces as this one,
+            // and 4 more after a {
+            int start = lineStart(box, box->cursor);
+            int spaces = 0;
+            while (start + spaces < box->cursor && box->text[start + spaces] == ' ') spaces++;
+            if (box->cursor > 0 && box->text[box->cursor - 1] == '{') spaces += 4;
+            insertChar(box, '\n');
+            for (int i = 0; i < spaces; i++) insertChar(box, ' ');
+        } else {
+            insertChar(box, '\n');
+        }
+    }
+
+    if (box->codeMode) {
+        // Tab puts in 4 spaces
+        if (keyPressed(KEY_TAB)) {
+            for (int i = 0; i < 4; i++) insertChar(box, ' ');
+        }
+        // Ctrl/Cmd + V pastes
+        if (control && IsKeyPressed(KEY_V)) {
+            const char *pasted = GetClipboardText();
+            for (const char *p = pasted; p != nullptr && *p != '\0'; p++) {
+                if (*p == '\t') {
+                    for (int i = 0; i < 4; i++) insertChar(box, ' ');
+                } else if (*p == '\n' || (*p >= 32 && *p <= 126)) {
+                    insertChar(box, *p);
+                }
+            }
+        }
+        // The mouse wheel scrolls
+        if (CheckCollisionPointRec(GetMousePosition(), box->area)) {
+            box->firstLine -= (int)(GetMouseWheelMove() * 3);
+            if (box->firstLine < 0) box->firstLine = 0;
+        }
+    }
 
     // Backspace deletes the character before the cursor, Delete the one after it
     if (keyPressed(KEY_BACKSPACE) && box->cursor > 0) {
@@ -166,8 +223,8 @@ const char *keywords[] = { "int", "char", "bool", "float", "double", "void", "re
                            "namespace", "sizeof" };
 const int KEYWORD_COUNT = 24;
 
-const char *typeNames[] = { "Ball", "Node", "DoublyLinkedNode", "DoublyLinkedList", "cout", "endl" };
-const int TYPE_COUNT = 6;
+const char *typeNames[] = { "Ball", "Node", "DoublyLinkedNode", "DoublyLinkedList", "cout", "endl", "printf" };
+const int TYPE_COUNT = 7;
 
 bool isWordChar(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
@@ -291,7 +348,27 @@ void drawCodeBox(CodeBox *box, int highlightLine) {
 
     float x = area.x + 10;
     float y = area.y + 8;
-    float size = CODE_SIZE;
+    float size = box->size;
+
+    // codeMode: scroll so the cursor's line is showing, and draw only inside the box
+    int visibleLines = (int)((area.height - 16) / lineHeight(size));
+    if (box->codeMode) {
+        int cursorLine = 0;
+        for (int i = 0; i < box->cursor && i < box->length; i++) {
+            if (box->text[i] == '\n') cursorLine++;
+        }
+        static int lastCursor = -1;
+        if (box->cursor != lastCursor) {   // only follow the cursor when it moves (so the wheel still works)
+            if (cursorLine < box->firstLine) box->firstLine = cursorLine;
+            if (cursorLine >= box->firstLine + visibleLines) box->firstLine = cursorLine - visibleLines + 1;
+            lastCursor = box->cursor;
+        }
+        int maxFirst = countLines(box->text) - visibleLines;
+        if (maxFirst < 0) maxFirst = 0;
+        if (box->firstLine > maxFirst) box->firstLine = maxFirst;
+        beginClip(area.x + 2, area.y + 2, area.width - 4, area.height - 4);
+        y -= box->firstLine * lineHeight(size);
+    }
 
     // While the code runs, the current line gets a bar behind it
     if (highlightLine >= 0) {
@@ -325,5 +402,15 @@ void drawCodeBox(CodeBox *box, int highlightLine) {
         float cursorX = x + column * charWidth(size);
         float cursorY = y + line * lineHeight(size);
         DrawRectangle((int)cursorX, (int)cursorY, 2, (int)size + 2, COLOUR_ACCENT);
+    }
+    if (box->codeMode) {
+        EndScissorMode();
+        // A scroll bar when there's more code than fits
+        int lines = countLines(box->text);
+        if (lines > visibleLines) {
+            float barHeight = (area.height - 8) * visibleLines / lines;
+            float barY = area.y + 4 + (area.height - 8 - barHeight) * box->firstLine / (lines - visibleLines);
+            DrawRectangle((int)(area.x + area.width - 7), (int)barY, 4, (int)barHeight, Color{ 90, 95, 110, 255 });
+        }
     }
 }

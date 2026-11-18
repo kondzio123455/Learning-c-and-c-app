@@ -12,7 +12,7 @@
 const bool UNLOCK_BY_POTTING = true;
 
 // Which screen is showing
-enum Screen { SCREEN_MENU, SCREEN_PLAY, SCREEN_CODEX, SCREEN_PROGRESS, SCREEN_PRACTICE, SCREEN_TEST };
+enum Screen { SCREEN_MENU, SCREEN_PLAY, SCREEN_CODEX, SCREEN_PROGRESS, SCREEN_PRACTICE, SCREEN_TEST, SCREEN_EXAM };
 
 // ---------- Test mode ----------
 const int TEST_LENGTH = 10;
@@ -65,6 +65,8 @@ struct App {
     bool callNeeded;            // does the player have to call a ball this shot?
     bool practising;            // Practice screen: questions without the pool table
     bool solved;                // Practice screen: this question has been answered
+    int wrongCount;             // wrong tries at this question (practice: Guide me after GUIDE_AFTER)
+    int guideStep;              // guided help: how many clues are showing (0 = off)
     int hintsShown;             // how many hints the player has asked for (0 to 4)
     float taskScroll;           // how far a long question is scrolled (mouse wheel)
     float viewTop, viewBottom;  // the visible part of the question area (for clicks)
@@ -76,7 +78,7 @@ struct App {
 
     CodeBox answerBox;          // where the player types the answer
     CodeBox callBox;            // the call line: Ball *target = ...
-    char feedback[200];         // what's wrong, or "Correct!"
+    char feedback[500];         // what's wrong, or "Correct!"
     bool feedbackGood;
 
     // ---------- Shooting ----------
@@ -159,6 +161,7 @@ void drawPlayerSwitch(App *app, float x, float y);   // main.cpp
 
 // Test mode (testmode.cpp)
 void testScreen(App *app);
+void examScreen(App *app);   // exam.cpp: Coding Exam 2 practice
 void recordTestAnswer(App *app, const char *answer, CheckResult result);
 void restoreShot(App *app);    // goes back to it
 void drawSlideOverlay(App *app);   // the Slide window: what the slides say

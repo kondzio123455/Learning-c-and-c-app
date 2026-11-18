@@ -3,7 +3,7 @@
 
 #include "raylib.h"
 
-const int EDITOR_MAX_TEXT = 400;
+const int EDITOR_MAX_TEXT = 3000;   // room for a whole function (exam mode)
 const float CODE_SIZE = 16;          // font size of code
 
 // A box the player types code into
@@ -16,6 +16,9 @@ struct CodeBox {
     int maxLines;                // 1 for the call line, more for answers
     bool focused;                // true when key presses go to this box
     const char *placeholder;     // grey text shown while the box is empty
+    float size;                  // font size of the code
+    bool codeMode;               // exam editor: Tab, auto-indent, paste and scrolling
+    int firstLine;               // codeMode: the first line showing (when it's scrolled)
 };
 
 void setupCodeBox(CodeBox *box, int maxLines, const char *placeholder);
