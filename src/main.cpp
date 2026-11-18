@@ -1,4 +1,5 @@
 #include "raylib.h"
+#include "rlgl.h"
 #include "app.h"
 #include "ui.h"
 #include "effects.h"
@@ -516,12 +517,12 @@ void progressScreen(App *app) {
 }
 
 // ============================================================
-// Full screen
+// Window size
 // ============================================================
-// The game is laid out for 1280 x 720. Each frame is drawn at that size into
-// a texture, then stretched to fill the window (keeping its shape, with black
-// bars if the screen is a different shape). The mouse is scaled to match, so
-// every button still lines up.
+// The game is laid out for 1280 x 720, but it isn't stretched from a picture of
+// that size: every frame is drawn straight at the window's real resolution,
+// scaled up or down to fit (with a border if the window is a different shape).
+// So shapes and text stay sharp at any size. The mouse is scaled to match.
 
 void toggleFullScreen() {
     ToggleBorderlessWindowed();
@@ -531,19 +532,38 @@ bool isFullScreen() {
     return IsWindowState(FLAG_BORDERLESS_WINDOWED_MODE);
 }
 
+// Opens the window at most of the screen's size (keeping the game's shape), in the middle
+void sizeWindowToScreen() {
+    int monitor = GetCurrentMonitor();
+    int screenWidth = GetMonitorWidth(monitor);
+    int screenHeight = GetMonitorHeight(monitor);
+    int width = (int)(screenWidth * 0.85f);
+    int height = width * SCREEN_HEIGHT / SCREEN_WIDTH;
+    if (height > screenHeight * 0.85f) {
+        height = (int)(screenHeight * 0.85f);
+        width = height * SCREEN_WIDTH / SCREEN_HEIGHT;
+    }
+    if (width < 640) return;   // a very small or unknown screen: keep 1280 x 720
+    SetWindowSize(width, height);
+    SetWindowPosition((screenWidth - width) / 2, (screenHeight - height) / 2);
+}
+
 // ============================================================
 // main
 // ============================================================
 
 int main() {
-    SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);   // smoother circles, and the window can change size
+    // Smoother circles, a window you can resize, and (on a Mac) the full Retina resolution
+    unsigned int flags = FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE;
+#if defined(__APPLE__)
+    flags |= FLAG_WINDOW_HIGHDPI;
+#endif
+    SetConfigFlags(flags);
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Pointer Pool - learn C and C++ pointers");
+    SetWindowMinSize(640, 360);          // half size is the smallest it goes
     SetExitKey(KEY_NULL);                // Esc goes back instead of closing the window
     SetTargetFPS(60);                    // the friction is tuned for 60 frames per second
-    toggleFullScreen();                  // start in full screen (F11 switches back)
-
-    RenderTexture2D frame = LoadRenderTexture(SCREEN_WIDTH, SCREEN_HEIGHT);
-    SetTextureFilter(frame.texture, TEXTURE_FILTER_BILINEAR);   // smooth when stretched
+    sizeWindowToScreen();                // drag the edges to resize; F11 for full screen
 
     loadFonts();
     loadSounds();
@@ -567,16 +587,22 @@ int main() {
         // F11 switches between full screen and a window
         if (IsKeyPressed(KEY_F11)) toggleFullScreen();
 
-        // How much to stretch the 1280 x 720 frame, and where it goes on the screen
+        // How much to scale the 1280 x 720 game to fit the window, and where it goes
         float scaleX = (float)GetScreenWidth() / SCREEN_WIDTH;
         float scaleY = (float)GetScreenHeight() / SCREEN_HEIGHT;
         float scale = scaleX < scaleY ? scaleX : scaleY;
         float offsetX = (GetScreenWidth() - SCREEN_WIDTH * scale) / 2;
         float offsetY = (GetScreenHeight() - SCREEN_HEIGHT * scale) / 2;
+        setView(scale, offsetX, offsetY);
         SetMouseOffset((int)-offsetX, (int)-offsetY);   // so GetMousePosition() gives game coordinates
         SetMouseScale(1 / scale, 1 / scale);
 
-        BeginTextureMode(frame);
+        BeginDrawing();
+        ClearBackground(COLOUR_BG);   // the border round the game, if the window is a different shape
+        rlPushMatrix();               // everything below is drawn scaled to fit
+        rlTranslatef(offsetX, offsetY, 0);
+        rlScalef(scale, scale, 1);
+
         if (app.screen == SCREEN_MENU) menuScreen(&app);
         else if (app.screen == SCREEN_PLAY) playScreen(&app);
         else if (app.screen == SCREEN_CODEX) codexScreen(&app);
@@ -588,18 +614,11 @@ int main() {
         drawParticles();
         drawFloatingTexts();
         drawBanner(&app);
-        EndTextureMode();
 
-        // Stretch the frame to fill the screen (textures are stored upside down, hence -SCREEN_HEIGHT)
-        BeginDrawing();
-        ClearBackground(BLACK);
-        Rectangle source = { 0, 0, (float)SCREEN_WIDTH, (float)-SCREEN_HEIGHT };
-        Rectangle dest = { offsetX, offsetY, SCREEN_WIDTH * scale, SCREEN_HEIGHT * scale };
-        DrawTexturePro(frame.texture, source, dest, Vector2{ 0, 0 }, 0, WHITE);
+        rlPopMatrix();
         EndDrawing();
     }
 
-    UnloadRenderTexture(frame);
     unloadTableTextures();
     unloadSounds();
     unloadFonts();

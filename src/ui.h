@@ -31,6 +31,10 @@ float wrappedHeight(const char *text, float width, float size);
 void drawStar(float x, float y, float size, Color colour);
 void drawStars(float x, float y, int count, float size);
 
+// ---------- The view: the 1280 x 720 game, scaled to fit the window ----------
+void setView(float scale, float offsetX, float offsetY);
+void beginClip(float x, float y, float width, float height);   // like BeginScissorMode, in game coordinates
+
 // ---------- Buttons ----------
 void blockButtons(bool blocked);   // true while a window is open over the screen
 bool buttonsAreBlocked();

@@ -12,8 +12,8 @@ Font boldFont;
 
 void loadFonts() {
     // Loaded large, with mipmaps, so they stay sharp when drawn small
-    regularFont = LoadFontEx("assets/JetBrainsMono-Regular.ttf", 48, nullptr, 0);
-    boldFont = LoadFontEx("assets/JetBrainsMono-Bold.ttf", 48, nullptr, 0);
+    regularFont = LoadFontEx("assets/JetBrainsMono-Regular.ttf", 96, nullptr, 0);
+    boldFont = LoadFontEx("assets/JetBrainsMono-Bold.ttf", 96, nullptr, 0);
     GenTextureMipmaps(&regularFont.texture);
     GenTextureMipmaps(&boldFont.texture);
     SetTextureFilter(regularFont.texture, TEXTURE_FILTER_TRILINEAR);
@@ -109,6 +109,27 @@ float drawWrapped(const char *text, float x, float y, float width, float size, C
 // How tall some wrapped text will be, without drawing it
 float wrappedHeight(const char *text, float width, float size) {
     return wrapText(text, 0, 0, width, size, WHITE, false);
+}
+
+// ============================================================
+// The view
+// ============================================================
+// Everything is laid out for a 1280 x 720 screen. main() scales that to fit the
+// window, so these remember by how much (clipping works in window pixels).
+
+float viewScale = 1;
+float viewOffsetX = 0;
+float viewOffsetY = 0;
+
+void setView(float scale, float offsetX, float offsetY) {
+    viewScale = scale;
+    viewOffsetX = offsetX;
+    viewOffsetY = offsetY;
+}
+
+void beginClip(float x, float y, float width, float height) {
+    BeginScissorMode((int)(viewOffsetX + x * viewScale), (int)(viewOffsetY + y * viewScale),
+                     (int)(width * viewScale + 1), (int)(height * viewScale + 1));
 }
 
 // ============================================================

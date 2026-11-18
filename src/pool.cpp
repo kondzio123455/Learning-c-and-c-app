@@ -581,10 +581,12 @@ Texture2D lampTexture;   // a round glow, stretched over the felt as light from 
 void setupTableTextures() {
     Image noise = GenImagePerlinNoise(FELT_WIDTH, FELT_HEIGHT, 0, 0, 4.0f);
     feltTexture = LoadTextureFromImage(noise);
+    SetTextureFilter(feltTexture, TEXTURE_FILTER_BILINEAR);
     UnloadImage(noise);
 
     Image glow = GenImageGradientRadial(256, 256, 0.0f, Color{ 255, 255, 230, 46 }, Color{ 255, 255, 230, 0 });
     lampTexture = LoadTextureFromImage(glow);
+    SetTextureFilter(lampTexture, TEXTURE_FILTER_BILINEAR);
     UnloadImage(glow);
 }
 

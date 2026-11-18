@@ -235,7 +235,7 @@ void drawTestResults(App *app) {
     float y = 106;
     Rectangle page = { x - 16, 92, width + 32, SCREEN_HEIGHT - 172.0f };
     DrawRectangleRec(page, COLOUR_PANEL);
-    BeginScissorMode((int)page.x, (int)page.y, (int)page.width, (int)page.height);
+    beginClip(page.x, page.y, page.width, page.height);
     drawText(TextFormat("Question %d - Level %d: %s", app->testSelected + 1, q->level, getLevel(q->level)->title), x, y, 14, COLOUR_MUTED);
     y += 22;
     y += drawWrapped(q->task, x, y, width, 15, COLOUR_TEXT) + 8;

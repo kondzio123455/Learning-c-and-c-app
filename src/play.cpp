@@ -1,4 +1,5 @@
 #include "app.h"
+#include "rlgl.h"
 #include "ui.h"
 #include "effects.h"
 #include <cstdio>
@@ -670,7 +671,7 @@ void drawTaskArea(App *app, float x, float y, float width, float bottom) {
     float visibleBottom = bottom - 24;
     app->viewTop = top;
     app->viewBottom = visibleBottom;
-    BeginScissorMode((int)x - 8, (int)top, (int)width + 16, (int)(visibleBottom - top));
+    beginClip(x - 8, top, width + 16, visibleBottom - top);
     y -= app->taskScroll;
 
     // What kind of task, and how many stars it's worth right now
@@ -1029,7 +1030,7 @@ bool drawDiagramView(App *app, float x, float y, float width, float bottom, cons
     y += drawWrapped(TextFormat("After line %d of %d: the data table, like the slides. Arrows show what each pointer points at.",
                                 app->diagramStep, app->diagram.steps), x, y, width, 13, COLOUR_MUTED) + 8;
 
-    BeginScissorMode((int)x - 4, (int)y, (int)width + 8, (int)(bottom - 10 - y));
+    beginClip(x - 4, y, width + 8, bottom - 10 - y);
     drawDiagram(&app->diagram, task->code, app->diagramStep, x, y, width);
     EndScissorMode();
 
@@ -1214,10 +1215,9 @@ void playScreen(App *app) {
     DrawRectangle(PANEL_X, 56, SCREEN_WIDTH - PANEL_X, SCREEN_HEIGHT - 56, COLOUR_PANEL);
 
     // The table shakes a little on big hits
-    Camera2D camera = {};
-    camera.zoom = 1;
-    camera.offset = updateShake(dt);
-    BeginMode2D(camera);
+    Vector2 shake = updateShake(dt);
+    rlPushMatrix();
+    rlTranslatef(shake.x, shake.y, 0);
     drawTable();
     if (app->phase == PHASE_AIM) {
         drawAimGuide(game, app->aimX, app->aimY, app->learner->levelsDone >= AIM_GUIDE_LEVEL, app->learner->levelsDone >= BALL_PATH_LEVEL);
@@ -1229,7 +1229,7 @@ void playScreen(App *app) {
         if (app->phase == PHASE_STRIKE) strike = app->strikeTimer / 0.09f;
         drawCueStick(game, app->aimX, app->aimY, app->power, strike, app->learner->levelsDone >= GOLD_CUE_LEVEL);
     }
-    EndMode2D();
+    rlPopMatrix();
 
     blockButtons(blocked);
     drawUnderTable(app);
