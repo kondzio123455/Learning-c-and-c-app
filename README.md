@@ -30,6 +30,12 @@ once: the levels have been renumbered.
 - A dotted line shows where the cue ball will go. Finishing chapters unlocks
   upgrades: the ghost ball (Chapter 1), the ball path (Chapter 3) and the golden
   cue (Chapter 7).
+- **XP and ranks:** a right answer gives up to 50 XP (more stars, more XP), each of
+  your own balls potted 10 XP (plus a bonus in a combo), a new level 100 XP and a
+  win 150 XP. Fill the bar to rank up, from Null Pointer to Pool Legend.
+- **Combos:** pot your own balls one after another in the same turn and the combo
+  meter on the table counts them ("NICE SHOT!", then "COMBO x2", "COMBO x3"...).
+- When the 8 rolls into a pocket the game goes into slow motion.
 
 ## Players and saving
 
@@ -37,6 +43,7 @@ once: the levels have been renumbered.
   your name. On the main menu, **Change** picks who is Player 1 and Player 2, or
   adds a new player. Each player's progress is saved in its own file
   (`progress_Name.txt`), like save slots, so a new player always starts at Level 1.
+  Your XP is saved there too (on a third line; saves from before XP still load).
 - In a two-player game, **each player answers questions from their own level**,
   and potting unlocks the next level for whoever took the shot. One person can
   play both sides on their own.
@@ -109,7 +116,9 @@ once: the levels have been renumbered.
 | Backspace / Delete | Delete before / after the cursor |
 | Mouse wheel | Scroll a long question (a new hint scrolls into view by itself) |
 | Tab | Switch between the answer box and the call box |
-| Mouse | Aim; hold the left button to charge, let go to shoot |
+| Mouse left/right (or A/D, arrow keys) | Turn the aim in the 3D view; hold Shift to turn slowly |
+| Left mouse button | Hold to charge the power, let go to shoot |
+| T | Switch between the 3D view and looking straight down (in top-down, point at where to aim) |
 | Up / Down | Scroll the shot log (from Level 44) |
 | Drag the window's edges | Resize the window to any size: everything is drawn at the window's real resolution, so it stays sharp |
 | F11 | Switch between full screen and a window (there's also a button on the main menu) |
@@ -175,8 +184,14 @@ ones, the diagram's final table (or what it prints) matches the game's answer.
 |---|---|
 | `src/main.cpp` | The window, main menu, lessons screen and progress tree |
 | `src/play.cpp` | The game screen and practice: questions, hints, stars, shooting, banners |
-| `src/pool.cpp` | Table, balls, physics, 8-ball rules, the aim line and ghost ball |
-| `src/effects.cpp` | Particles, floating text, screen shake, and sounds made in code |
+| `src/pool.cpp` | Table, balls, physics, 8-ball rules, the aim line and ghost ball (the physics is 2D) |
+| `src/render3d.cpp` | Draws the table in 3D: table, spinning balls, cue, aim guide and the moving camera |
+| `src/anim.cpp` | Small easing helpers for smooth movement |
+| `src/theme.h` | The colours, fonts, corner sizes and timings, all in one place |
+| `shaders/lighting.vs/.fs` | The lamp over the table: lights the table, balls and cue |
+| `shaders/post.fs` | Glow (bloom) round bright things and darker corners (vignette) |
+| `src/fx.cpp` | Game feel: 3D particles (chalk, sparks, pot bursts), fireworks, popups, the combo, camera shake and hit-stop |
+| `src/sound.cpp` | Every sound, made in code from tones and noise (or your own files in `assets/sounds/`) |
 | `src/diagram.cpp` | Pointer diagrams: runs trace code line by line and draws the data table |
 | `src/guide.cpp` | Guided help in practice: the clues and the "how close" check |
 | `src/exam.cpp` | Exam mode: the 1-hour exam, compiling and running your code, and the marking |
@@ -187,7 +202,9 @@ ones, the diagram's final table (or what it prints) matches the game's answer.
 | `src/lessons_pointers.cpp` | Chapters 1-4: the Pointers lecture and Lab 2 Part 1 |
 | `src/lessons_memory.cpp` | Chapters 5-6: Memory Management and Classes |
 | `src/lessons_lists.cpp` | Chapters 7-8: linked lists and the Lab 1 review |
-| `src/editor.cpp` | The code box: typing, cursor and syntax colouring |
+| `src/editor.cpp` | The code box, like a code editor: typing, line numbers, syntax colours, the gliding cursor, the bar that steps through the lines on Run |
+| `src/memory.cpp` | The memory panel: each variable a box with its value and address, each pointer an animated arrow |
+| `src/progression.cpp` | XP and ranks, the combo meter, the unlock card, and the skill tree on the Progress screen |
 | `src/ui.cpp` | Fonts, buttons, stars and pieces of the game screen |
 | `src/lab1.cpp` / `src/lab2.cpp` | The lab functions the game really uses |
 | `src/app.h` | The `App` struct that holds the whole app's state |
@@ -203,5 +220,7 @@ ones, the diagram's final table (or what it prints) matches the game's answer.
 
 ## Credits
 
-Font: JetBrains Mono, under the SIL Open Font License (see `assets/OFL.txt`).
-Sounds are generated in code, so there are no sound files.
+Fonts: JetBrains Mono for text and code (see `assets/OFL.txt`), and Inter
+(ExtraBold and SemiBold, https://github.com/rsms/inter) for titles and buttons (see `assets/Inter-OFL.txt`).
+Both are free under the SIL Open Font License.
+Sounds are generated in code, so no sound files are needed. To use recordings instead, see `assets/sounds/README.txt`.

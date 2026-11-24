@@ -19,6 +19,13 @@ struct CodeBox {
     float size;                  // font size of the code
     bool codeMode;               // exam editor: Tab, auto-indent, paste and scrolling
     int firstLine;               // codeMode: the first line showing (when it's scrolled)
+
+    // How it looks (these don't change what's typed)
+    float caretX, caretY;        // where the cursor is drawn: it glides to where it should be
+    bool caretPlaced;            // false until it's been drawn once (then it jumps there)
+    double lastChange;           // when the text or cursor last changed (the cursor stays solid while typing)
+    float runBarY;               // the glowing bar that steps through the lines on Run (-1 = none)
+    bool error;                  // after a wrong answer: a red wavy line under the code, until it's changed
 };
 
 void setupCodeBox(CodeBox *box, int maxLines, const char *placeholder);
@@ -28,6 +35,7 @@ void placeCursorAt(CodeBox *box, Vector2 mouse);       // puts the cursor where 
 void drawCodeBox(CodeBox *box, int highlightLine);     // highlightLine = -1 for none
 float drawCode(const char *code, float x, float y, float size, float width);   // syntax-coloured code, returns height
 float drawNumberedCode(const char *code, float x, float y, float size);         // the same, with line numbers
+void drawRunningBar(Rectangle line);                   // the glowing bar for the line that's running
 int countLines(const char *text);
 
 #endif

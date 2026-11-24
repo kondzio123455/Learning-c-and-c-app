@@ -1,4 +1,7 @@
 #include "ui.h"
+#include "render3d.h"
+#include "anim.h"
+#include "sound.h"
 #include "lab2.h"
 #include <cstdio>
 #include <cmath>
@@ -9,20 +12,29 @@
 
 Font regularFont;
 Font boldFont;
+Font titleFont;    // Inter ExtraBold, for titles
+Font buttonFont;   // Inter SemiBold, for button labels
+
+// Loaded large, with mipmaps, so it stays sharp when drawn small
+Font loadSharpFont(const char *file) {
+    Font font = LoadFontEx(file, 96, nullptr, 0);
+    GenTextureMipmaps(&font.texture);
+    SetTextureFilter(font.texture, TEXTURE_FILTER_TRILINEAR);
+    return font;
+}
 
 void loadFonts() {
-    // Loaded large, with mipmaps, so they stay sharp when drawn small
-    regularFont = LoadFontEx("assets/JetBrainsMono-Regular.ttf", 96, nullptr, 0);
-    boldFont = LoadFontEx("assets/JetBrainsMono-Bold.ttf", 96, nullptr, 0);
-    GenTextureMipmaps(&regularFont.texture);
-    GenTextureMipmaps(&boldFont.texture);
-    SetTextureFilter(regularFont.texture, TEXTURE_FILTER_TRILINEAR);
-    SetTextureFilter(boldFont.texture, TEXTURE_FILTER_TRILINEAR);
+    regularFont = loadSharpFont(FONT_REGULAR);
+    boldFont = loadSharpFont(FONT_BOLD);
+    titleFont = loadSharpFont(FONT_TITLE);
+    buttonFont = loadSharpFont(FONT_BUTTON);
 }
 
 void unloadFonts() {
     UnloadFont(regularFont);
     UnloadFont(boldFont);
+    UnloadFont(titleFont);
+    UnloadFont(buttonFont);
 }
 
 void drawText(const char *text, float x, float y, float size, Color colour) {
@@ -31,6 +43,26 @@ void drawText(const char *text, float x, float y, float size, Color colour) {
 
 void drawBold(const char *text, float x, float y, float size, Color colour) {
     DrawTextEx(boldFont, text, Vector2{ x, y }, size, 0, colour);
+}
+
+void drawTitle(const char *text, float x, float y, float size, Color colour) {
+    DrawTextEx(titleFont, text, Vector2{ x, y }, size, 0, colour);
+}
+
+float titleWidth(const char *text, float size) {
+    return MeasureTextEx(titleFont, text, size, 0).x;
+}
+
+// A title with a soft glow: faint copies of it drawn in a ring round it, then the title on top
+void drawGlowTitle(const char *text, float x, float y, float size, Color colour, float glow) {
+    for (int ring = 1; ring <= 2; ring++) {
+        float r = ring * size * 0.05f;
+        for (int k = 0; k < 8; k++) {
+            float angle = k * PI / 4;
+            drawTitle(text, x + cosf(angle) * r, y + sinf(angle) * r, size, Fade(colour, 0.07f * glow));
+        }
+    }
+    drawTitle(text, x, y, size, colour);
 }
 
 float textWidth(const char *text, float size) {
@@ -121,6 +153,10 @@ float viewScale = 1;
 float viewOffsetX = 0;
 float viewOffsetY = 0;
 
+float getViewScale() {
+    return viewScale;
+}
+
 void setView(float scale, float offsetX, float offsetY) {
     viewScale = scale;
     viewOffsetX = offsetX;
@@ -175,17 +211,124 @@ bool buttonsAreBlocked() {
     return buttonsBlocked;
 }
 
+// raylib's roundness is a fraction of the shorter side; this turns a radius in pixels into that
+float roundnessFor(Rectangle area, float radius) {
+    float shortest = fminf(area.width, area.height);
+    if (shortest <= 0) return 0;
+    return fminf(1.0f, radius * 2 / shortest);
+}
+
+// Grows a rectangle by 'by' pixels on every side
+Rectangle grow(Rectangle area, float by) {
+    return Rectangle{ area.x - by, area.y - by, area.width + 2 * by, area.height + 2 * by };
+}
+
+// A soft shadow: a few see-through rounded boxes, each a little bigger, shifted down
+void drawSoftShadow(Rectangle area, float radius, float size, float alpha) {
+    const int LAYERS = 6;
+    for (int i = LAYERS; i >= 1; i--) {
+        float spread = size * i / LAYERS;
+        Rectangle layer = grow(area, spread);
+        layer.y += size * 0.35f;
+        DrawRectangleRounded(layer, roundnessFor(layer, radius + spread), 8, Fade(COLOUR_SHADOW, alpha / LAYERS));
+    }
+}
+
+// The room behind every screen: dark, with the warm light of a lamp at the top
+void drawBackground() {
+    ClearBackground(COLOUR_BG);
+    // The lamp's glow: see-through circles, each smaller one adding a little more light
+    for (int i = 24; i >= 1; i--) {
+        DrawCircleV(Vector2{ SCREEN_WIDTH / 2.0f, -260 }, 900.0f * i / 24, Fade(Color{ 70, 56, 38, 255 }, 0.016f));
+    }
+    DrawRectangleGradientV(0, SCREEN_HEIGHT - 220, SCREEN_WIDTH, 220, Fade(BLACK, 0), Fade(BLACK, 0.3f));
+}
+
+// The bar along the top of a screen, with a thin brass line under it
+void drawBar(float x, float y, float width, float height) {
+    DrawRectangleGradientV((int)x, (int)y, (int)width, (int)height, COLOUR_PANEL_TOP, COLOUR_PANEL);
+    DrawRectangleGradientV((int)x, (int)(y + height), (int)width, 10, Fade(BLACK, 0.35f), Fade(BLACK, 0));
+    DrawRectangle((int)x, (int)(y + height - 1), (int)width, 1, Fade(COLOUR_ACCENT, 0.2f));
+}
+
+void drawPanel(Rectangle area) {
+    drawSoftShadow(area, PANEL_RADIUS, SHADOW_SIZE, 0.55f);
+    float roundness = roundnessFor(area, PANEL_RADIUS);
+    DrawRectangleRounded(area, roundness, 10, COLOUR_PANEL);
+    DrawRectangleRoundedLinesEx(area, roundness, 10, 1, Fade(WHITE, 0.06f));   // a faint edge catches the light
+}
+
+void drawPopupBox(Rectangle area) {
+    float roundness = roundnessFor(area, PANEL_RADIUS);
+    for (int i = 3; i >= 1; i--) {
+        DrawRectangleRounded(grow(area, i * 4.0f), roundnessFor(grow(area, i * 4.0f), PANEL_RADIUS + i * 4), 10, Fade(COLOUR_ACCENT, 0.035f));
+    }
+    drawPanel(area);
+    DrawRectangleRoundedLinesEx(area, roundness, 10, 2, Fade(COLOUR_ACCENT, 0.85f));
+}
+
+void drawCodeBackground(Rectangle area) {
+    DrawRectangleRounded(area, roundnessFor(area, 6), 8, COLOUR_CODE_BG);
+}
+
+void drawPanelCover(Rectangle area, float alpha) {
+    DrawRectangleRounded(area, roundnessFor(area, PANEL_RADIUS), 10, Fade(COLOUR_PANEL, alpha));
+}
+
+// Each button remembers how lit up it is (0 to 1), so it can glow and grow smoothly.
+// Buttons are drawn fresh every frame, so a button is found again by where it is.
+struct ButtonGlow {
+    float x, y;
+    float amount;
+    bool hovered;   // was the mouse over it last frame? (to tick once when it arrives)
+};
+const int MAX_BUTTON_GLOWS = 64;
+ButtonGlow buttonGlows[MAX_BUTTON_GLOWS];
+int buttonGlowCount = 0;
+
+ButtonGlow *glowFor(Rectangle area) {
+    for (int i = 0; i < buttonGlowCount; i++) {
+        if (fabsf(buttonGlows[i].x - area.x) < 0.5f && fabsf(buttonGlows[i].y - area.y) < 0.5f) return &buttonGlows[i];
+    }
+    int slot = buttonGlowCount;
+    if (buttonGlowCount < MAX_BUTTON_GLOWS) buttonGlowCount++;
+    else slot = GetRandomValue(0, MAX_BUTTON_GLOWS - 1);   // full: reuse one
+    buttonGlows[slot] = ButtonGlow{ area.x, area.y, 0, false };
+    return &buttonGlows[slot];
+}
+
 bool button(Rectangle area, const char *label) {
     bool hover = !buttonsBlocked && CheckCollisionPointRec(GetMousePosition(), area);
-    Color colour = COLOUR_BUTTON;
-    if (hover) colour = COLOUR_BUTTON_HOVER;
 
-    DrawRectangleRounded(area, 0.25f, 8, colour);
+    // Glide towards lit up (hovered) or not
+    ButtonGlow *glow = glowFor(area);
+    if (hover && !glow->hovered) playSound(SOUND_HOVER, 0.35f);   // a soft tick as the mouse arrives
+    glow->hovered = hover;
+    glow->amount = smoothTowards(glow->amount, hover ? 1.0f : 0.0f, 14, GetFrameTime());
+    float g = glow->amount;
+
+    // A hovered button grows a little and glows brass
+    Rectangle box = grow(area, g * 3);
+    float roundness = roundnessFor(box, BUTTON_RADIUS);
+    if (g > 0.01f) {
+        for (int i = 3; i >= 1; i--) {
+            Rectangle halo = grow(box, i * 3.0f);
+            DrawRectangleRounded(halo, roundnessFor(halo, BUTTON_RADIUS + i * 3), 8, Fade(COLOUR_ACCENT, 0.06f * g));
+        }
+    }
+    drawSoftShadow(box, BUTTON_RADIUS, 6, 0.4f);
+    Color colour = ColorLerp(COLOUR_BUTTON, COLOUR_BUTTON_HOVER, g);
+    DrawRectangleRounded(box, roundness, 8, colour);
+    DrawRectangleRoundedLinesEx(box, roundness, 8, 1, Fade(COLOUR_ACCENT, 0.12f + 0.5f * g));
+
     float size = 18;
-    float width = textWidth(label, size);
-    drawBold(label, area.x + (area.width - width) / 2, area.y + (area.height - size) / 2, size, COLOUR_TEXT);
+    float width = MeasureTextEx(buttonFont, label, size, 0).x;
+    Color text = ColorLerp(COLOUR_TEXT, Color{ 255, 236, 190, 255 }, g);
+    DrawTextEx(buttonFont, label, Vector2{ box.x + (box.width - width) / 2, box.y + (box.height - size) / 2 - 1 }, size, 0, text);
 
-    return hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+    bool clicked = hover && IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+    if (clicked) playSound(SOUND_BUTTON, 0.5f);
+    return clicked;
 }
 
 // ============================================================
@@ -315,23 +458,16 @@ void drawShotLog(DoublyLinkedNode *newest, Rectangle area, bool canScroll) {
 
 // Hovering over a ball shows which ball it is and its address
 void drawBallTooltip(Game *game) {
+    // The 3D table works out which ball is under the mouse
+    int n = ballUnderMouse(game);
+    if (n < 0) return;
     Vector2 mouse = GetMousePosition();
-    for (int n = 0; n < BALL_COUNT; n++) {
-        Ball *ball = &game->balls[n];
-        if (ball->pocketed) continue;
-
-        float dx = mouse.x - ball->x;
-        float dy = mouse.y - ball->y;
-        if (dx * dx + dy * dy < BALL_RADIUS * BALL_RADIUS) {
-            const char *text = TextFormat("balls[%d] at address %d", n, addressOf(n));
-            if (n == 0) text = TextFormat("balls[0] (cue ball) at address %d", addressOf(0));
-            float width = textWidth(text, 14) + 16;
-            Rectangle box = { ball->x - width / 2, ball->y - 42, width, 24 };
-            DrawRectangleRounded(box, 0.3f, 6, Fade(BLACK, 0.85f));
-            drawText(text, box.x + 8, box.y + 4, 14, COLOUR_TEXT);
-            return;
-        }
-    }
+    const char *text = TextFormat("balls[%d] at address %d", n, addressOf(n));
+    if (n == 0) text = TextFormat("balls[0] (cue ball) at address %d", addressOf(0));
+    float width = textWidth(text, 14) + 16;
+    Rectangle box = { mouse.x - width / 2, mouse.y - 40, width, 24 };
+    DrawRectangleRounded(box, 0.3f, 6, Fade(BLACK, 0.85f));
+    drawText(text, box.x + 8, box.y + 4, 14, COLOUR_TEXT);
 }
 
 // A table of variables, like the Name / Type / Value tables in the Pointers lecture
@@ -348,19 +484,37 @@ void drawDataRow(float x, float y, const char *name, const char *type, const cha
     drawText(value, x + 260, y, 15, COLOUR_ACCENT);
 }
 
-// The power bar (power goes from 0 to 100)
+// The power bar (power goes from 0 to 100). It fills smoothly, and its end
+// glows while the value is changing (when *powerPtr writes a new value).
+float barShown = 0;
+float barLast = 0;
+float barGlow = 0;
+
 void drawPowerBar(float x, float y, float width, float power, bool fromCode, bool showPointer) {
+    float dt = GetFrameTime();
+    if (fabsf(power - barLast) > 0.01f) barGlow = 1;
+    barLast = power;
+    barGlow = fmaxf(0, barGlow - 3 * dt);
+    barShown = smoothTowards(barShown, power, 14, dt);
+
     const char *label = "Power";
     if (fromCode) label = "Power (set by your code)";
     drawText(label, x, y, 15, COLOUR_MUTED);
 
     Rectangle back = { x, y + 22, width, 22 };
-    DrawRectangleRec(back, COLOUR_CODE_BG);
-    Rectangle fill = { x, y + 22, width * power / 100, 22 };
-    DrawRectangleGradientH((int)fill.x, (int)fill.y, (int)fill.width, (int)fill.height,
-                           Color{ 90, 200, 90, 255 }, Color{ 240, 110, 60, 255 });
-    DrawRectangleLinesEx(back, 1, Color{ 90, 95, 110, 255 });
-    drawText(TextFormat("%d", (int)power), x + width + 10, y + 24, 16, COLOUR_TEXT);
+    DrawRectangleRounded(back, 0.5f, 8, COLOUR_CODE_BG);
+    float fillWidth = width * barShown / 100;
+    if (fillWidth > 2) {
+        beginClip(x, y + 22, fillWidth, 22);
+        DrawRectangleGradientH((int)x, (int)(y + 22), (int)width, 22, Color{ 90, 200, 90, 255 }, Color{ 240, 110, 60, 255 });
+        EndScissorMode();
+        // The end of the bar glows while it fills
+        Vector2 end = { x + fillWidth, y + 33 };
+        DrawCircleV(end, 14, Fade(Color{ 255, 220, 150, 255 }, 0.18f * barGlow));
+        DrawRectangleRec(Rectangle{ end.x - 2, y + 22, 3, 22 }, Fade(WHITE, 0.4f + 0.6f * barGlow));
+    }
+    DrawRectangleRoundedLinesEx(back, 0.5f, 8, 1, Color{ 90, 95, 110, 255 });
+    drawText(TextFormat("%d", (int)roundf(barShown)), x + width + 10, y + 24, 16, COLOUR_TEXT);
 
     // Level 1: the game reads the power through a pointer
     if (showPointer) {

@@ -93,6 +93,7 @@ int highestBallLeft(Game *game);
 bool callIsAllowed(Game *game, int ballNumber, char *why, int whySize);
 
 // ---------- Shooting and physics ----------
+extern bool tableEffects;   // false while the menu's balls roll by themselves (no sounds or sparks)
 void startShot(Game *game, float aimX, float aimY, float power);
 void updateBalls(Game *game, float dt);
 bool ballsMoving(Game *game);
@@ -108,5 +109,6 @@ void drawBalls(Game *game);
 void drawTargetRing(Game *game);
 void drawCueStick(Game *game, float aimX, float aimY, float power, float strike, bool golden);
 void drawAimGuide(Game *game, float aimX, float aimY, bool showGhost, bool showPath);
+bool aimContact(Game *game, float aimX, float aimY, float *dirX, float *dirY, float *hitDistance, int *hitBall);
 
 #endif

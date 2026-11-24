@@ -6,10 +6,10 @@ CXX = clang++
 CXXFLAGS = -std=c++17 -Wall -Wextra -g $(shell pkg-config --cflags raylib)
 LIBS = $(shell pkg-config --libs raylib)
 
-SRC = src/main.cpp src/play.cpp src/practice.cpp src/pool.cpp src/effects.cpp src/ui.cpp src/editor.cpp \
-      src/diagram.cpp src/guide.cpp src/exam.cpp src/exam_questions.cpp src/testmode.cpp src/questions.cpp src/lessons_pointers.cpp src/lessons_memory.cpp src/lessons_lists.cpp \
+SRC = src/main.cpp src/play.cpp src/practice.cpp src/pool.cpp src/fx.cpp src/sound.cpp src/ui.cpp src/editor.cpp \
+      src/render3d.cpp src/anim.cpp src/memory.cpp src/progression.cpp src/diagram.cpp src/guide.cpp src/exam.cpp src/exam_questions.cpp src/testmode.cpp src/questions.cpp src/lessons_pointers.cpp src/lessons_memory.cpp src/lessons_lists.cpp \
       src/lab1.cpp src/lab2.cpp
-HEADERS = src/app.h src/practice.h src/pool.h src/effects.h src/ui.h src/editor.h src/diagram.h src/guide.h src/exam_questions.h src/questions.h src/lab1.h src/lab2.h
+HEADERS = src/app.h src/practice.h src/pool.h src/fx.h src/sound.h src/ui.h src/editor.h src/render3d.h src/anim.h src/memory.h src/progression.h src/theme.h src/diagram.h src/guide.h src/exam_questions.h src/questions.h src/lab1.h src/lab2.h
 TARGET = pointer_pool
 
 all: $(TARGET)

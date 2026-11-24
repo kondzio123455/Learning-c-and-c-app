@@ -395,6 +395,7 @@ void setupProfile(Profile *profile, const char *name) {
     snprintf(profile->name, NAME_LENGTH, "%s", name);
     profile->levelsDone = 0;
     for (int n = 0; n <= LEVEL_COUNT; n++) profile->stars[n] = 0;
+    profile->xp = 0;
     profile->lessonShown = false;
     profile->askCount = 0;
     profile->welcomed = false;
@@ -408,6 +409,8 @@ void readProgressFile(const char *fileName, Profile *profile) {
     for (int n = 1; n <= LEVEL_COUNT; n++) {
         if (fscanf(file, "%d", &profile->stars[n]) != 1) profile->stars[n] = 0;
     }
+    // XP is on a third line (saves from before XP don't have it: they start at 0)
+    if (fscanf(file, "%d", &profile->xp) != 1 || profile->xp < 0) profile->xp = 0;
     fclose(file);
     if (profile->levelsDone < 0) profile->levelsDone = 0;
     if (profile->levelsDone > LEVEL_COUNT) profile->levelsDone = LEVEL_COUNT;
@@ -422,7 +425,7 @@ void saveProfile(Profile *profile) {
     for (int n = 1; n <= LEVEL_COUNT; n++) {
         fprintf(file, "%d ", profile->stars[n]);
     }
-    fprintf(file, "\n");
+    fprintf(file, "\n%d\n", profile->xp);
     fclose(file);
 }
 

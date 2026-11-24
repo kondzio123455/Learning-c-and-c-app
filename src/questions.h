@@ -94,6 +94,7 @@ struct Profile {
     char name[NAME_LENGTH];
     int levelsDone;
     int stars[LEVEL_COUNT + 1];  // best stars for each level: 3 = no hints used
+    int xp;                      // experience points (they fill the XP bar; ranks go up)
     // These only last while the game is open:
     bool lessonShown;            // has the current level's lesson been shown?
     int askCount;                // how many times the current level has been asked

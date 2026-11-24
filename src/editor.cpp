@@ -1,6 +1,8 @@
 #include "editor.h"
 #include "ui.h"
+#include "anim.h"
 #include <cstring>
+#include <cmath>
 
 // ============================================================
 // Typing
@@ -16,6 +18,10 @@ void setupCodeBox(CodeBox *box, int maxLines, const char *placeholder) {
     box->size = CODE_SIZE;
     box->codeMode = false;
     box->firstLine = 0;
+    box->caretPlaced = false;
+    box->lastChange = 0;
+    box->runBarY = -1;
+    box->error = false;
     clearCodeBox(box);
 }
 
@@ -24,6 +30,7 @@ void clearCodeBox(CodeBox *box) {
     box->length = 0;
     box->cursor = 0;
     box->firstLine = 0;
+    box->error = false;
 }
 
 int countLines(const char *text) {
@@ -113,6 +120,8 @@ bool keyPressed(int key) {
 void updateCodeBox(CodeBox *box) {
     if (!box->focused) return;
     if (box->cursor > box->length) box->cursor = box->length;   // in case the text was changed
+    int lengthBefore = box->length;
+    int cursorBefore = box->cursor;
 
     // Typed characters (GetCharPressed handles Shift for us)
     int key = GetCharPressed();
@@ -204,6 +213,10 @@ void updateCodeBox(CodeBox *box) {
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(GetMousePosition(), box->area)) {
         placeCursorAt(box, GetMousePosition());
     }
+
+    // Typing clears the red underline; any change keeps the cursor solid for a moment
+    if (box->length != lengthBefore) box->error = false;
+    if (box->length != lengthBefore || box->cursor != cursorBefore) box->lastChange = GetTime();
 }
 
 // ============================================================
@@ -336,27 +349,77 @@ float drawNumberedCode(const char *code, float x, float y, float size) {
 }
 
 // ============================================================
-// Drawing the box
+// Drawing the box: it looks like a code editor (IDE)
 // ============================================================
+
+const Color GUTTER = { 10, 11, 14, 255 };             // the strip with the line numbers
+const Color CURRENT_LINE = { 255, 255, 255, 10 };     // a faint band on the line you're typing on
+const Color RUN_GREEN = { 110, 214, 132, 255 };
+
+// The glowing bar for the line that's running: a soft green glow with a bright edge on the left
+void drawRunningBar(Rectangle line) {
+    for (int i = 3; i >= 1; i--) {
+        Rectangle glow = { line.x, line.y - i * 2.0f, line.width, line.height + i * 4.0f };
+        DrawRectangleRec(glow, Fade(RUN_GREEN, 0.05f));
+    }
+    DrawRectangleRec(line, Fade(RUN_GREEN, 0.18f));
+    DrawRectangleRec(Rectangle{ line.x, line.y, 3, line.height }, RUN_GREEN);
+    // A small play arrow
+    float mid = line.y + line.height / 2;
+    DrawTriangle(Vector2{ line.x + 7, mid - 5 }, Vector2{ line.x + 7, mid + 5 }, Vector2{ line.x + 14, mid }, RUN_GREEN);
+}
+
+// A red wavy line (like a spelling mistake) under 'columns' characters of a line
+void drawSquiggle(float x, float y, int columns, float size) {
+    float width = columns * charWidth(size);
+    if (width < 8) width = 8;
+    Vector2 last = { x, y };
+    for (float d = 2; d <= width; d += 2) {
+        Vector2 point = { x + d, y + sinf(d * 0.8f) * 1.5f };
+        DrawLineEx(last, point, 1.3f, COLOUR_BAD);
+        last = point;
+    }
+}
 
 void drawCodeBox(CodeBox *box, int highlightLine) {
     Rectangle area = box->area;
-    DrawRectangleRec(area, COLOUR_CODE_BG);
-    Color border = Color{ 70, 75, 90, 255 };
-    if (box->focused) border = COLOUR_ACCENT;
-    DrawRectangleLinesEx(area, 2, border);
-
-    float x = area.x + 10;
-    float y = area.y + 8;
     float size = box->size;
+    float lh = lineHeight(size);
+    float dt = GetFrameTime();
+    bool numbered = box->maxLines > 1;   // line numbers for code; not for one-line boxes
+    float gutterWidth = numbered ? charWidth(size) * 3 + 14 : 0;
+
+    // The box: rounded, with a glow round it while you're typing in it
+    float roundness = roundnessFor(area, 6);
+    if (box->focused) {
+        for (int i = 3; i >= 1; i--) {
+            Rectangle glow = { area.x - i * 2.0f, area.y - i * 2.0f, area.width + i * 4.0f, area.height + i * 4.0f };
+            DrawRectangleRounded(glow, roundnessFor(glow, 6 + i * 2.0f), 8, Fade(COLOUR_ACCENT, 0.05f));
+        }
+    }
+    DrawRectangleRounded(area, roundness, 8, COLOUR_CODE_BG);
+    if (numbered) DrawRectangleRec(Rectangle{ area.x + 2, area.y + 2, gutterWidth - 4, area.height - 4 }, GUTTER);
+    Color border = box->focused ? COLOUR_ACCENT : Color{ 58, 60, 72, 255 };
+    if (box->error) border = COLOUR_BAD;
+    DrawRectangleRoundedLinesEx(area, roundness, 8, box->focused ? 1.5f : 1.0f, border);
+
+    float x = area.x + gutterWidth + 10;
+    float y = area.y + 8;
 
     // codeMode: scroll so the cursor's line is showing, and draw only inside the box
-    int visibleLines = (int)((area.height - 16) / lineHeight(size));
-    if (box->codeMode) {
-        int cursorLine = 0;
-        for (int i = 0; i < box->cursor && i < box->length; i++) {
-            if (box->text[i] == '\n') cursorLine++;
+    int visibleLines = (int)((area.height - 16) / lh);
+    int cursorLine = 0;
+    int cursorColumn = 0;
+    int cursor = box->cursor < box->length ? box->cursor : box->length;
+    for (int i = 0; i < cursor; i++) {
+        if (box->text[i] == '\n') {
+            cursorLine++;
+            cursorColumn = 0;
+        } else {
+            cursorColumn++;
         }
+    }
+    if (box->codeMode) {
         static int lastCursor = -1;
         if (box->cursor != lastCursor) {   // only follow the cursor when it moves (so the wheel still works)
             if (cursorLine < box->firstLine) box->firstLine = cursorLine;
@@ -367,42 +430,82 @@ void drawCodeBox(CodeBox *box, int highlightLine) {
         if (maxFirst < 0) maxFirst = 0;
         if (box->firstLine > maxFirst) box->firstLine = maxFirst;
         beginClip(area.x + 2, area.y + 2, area.width - 4, area.height - 4);
-        y -= box->firstLine * lineHeight(size);
+        y -= box->firstLine * lh;
     }
 
-    // While the code runs, the current line gets a bar behind it
+    // The line you're typing on gets a faint band
+    if (box->focused && highlightLine < 0) {
+        DrawRectangleRec(Rectangle{ area.x + gutterWidth, y + cursorLine * lh - 2, area.width - gutterWidth - 2, lh }, CURRENT_LINE);
+    }
+
+    // While the code runs, a glowing bar glides from line to line
     if (highlightLine >= 0) {
-        DrawRectangle((int)area.x + 2, (int)(y + highlightLine * lineHeight(size)) - 2,
-                      (int)area.width - 4, (int)lineHeight(size), Color{ 40, 90, 50, 255 });
+        float target = y + highlightLine * lh - 2;
+        if (box->runBarY < 0) box->runBarY = target;   // the first line: start there
+        box->runBarY = smoothTowards(box->runBarY, target, 18, dt);
+        drawRunningBar(Rectangle{ area.x + 2, box->runBarY, area.width - 4, lh });
+    } else {
+        box->runBarY = -1;
+    }
+
+    // Line numbers (the one you're on is brighter)
+    if (numbered) {
+        int lines = countLines(box->text);
+        if (lines < 1) lines = 1;
+        for (int i = 0; i < lines; i++) {
+            Color colour = (box->focused && i == cursorLine) ? COLOUR_TEXT : Color{ 88, 90, 104, 255 };
+            if (i == highlightLine) colour = RUN_GREEN;
+            const char *number = TextFormat("%d", i + 1);
+            drawText(number, area.x + gutterWidth - 8 - textWidth(number, size), y + i * lh, size, colour);
+        }
     }
 
     if (box->length == 0) {
         drawText(box->placeholder, x, y, size, COLOUR_MUTED);
     } else {
-        drawCode(box->text, x, y, size, area.width - 20);
+        drawCode(box->text, x, y, size, area.width - gutterWidth - 20);
+    }
+
+    // After a wrong answer: a red wavy line under each line of code
+    if (box->error && box->length > 0) {
+        int line = 0;
+        int column = 0;
+        int indent = -1;   // where the line's code starts (after its spaces)
+        for (int i = 0; i <= box->length; i++) {
+            if (i == box->length || box->text[i] == '\n') {
+                if (indent >= 0) drawSquiggle(x + indent * charWidth(size), y + line * lh + size + 2, column - indent, size);
+                line++;
+                column = 0;
+                indent = -1;
+            } else {
+                if (indent < 0 && box->text[i] != ' ') indent = column;
+                column++;
+            }
+        }
     }
 
     box->textX = x;   // remembered for placing the cursor with the mouse
     box->textY = y;
 
-    // Blinking cursor: count the lines before it, and the characters since its line started
-    if (box->focused && ((int)(GetTime() * 2) % 2 == 0)) {
-        int cursor = box->cursor;
-        if (cursor > box->length) cursor = box->length;
-        int line = 0;
-        int column = 0;
-        for (int i = 0; i < cursor; i++) {
-            if (box->text[i] == '\n') {
-                line++;
-                column = 0;
-            } else {
-                column++;
-            }
+    // The cursor glides to where it should be, and pulses gently (solid while you're typing)
+    if (box->focused) {
+        float cursorX = x + cursorColumn * charWidth(size);
+        float cursorY = y + cursorLine * lh;
+        if (!box->caretPlaced) {
+            box->caretX = cursorX;
+            box->caretY = cursorY;
+            box->caretPlaced = true;
         }
-        float cursorX = x + column * charWidth(size);
-        float cursorY = y + line * lineHeight(size);
-        DrawRectangle((int)cursorX, (int)cursorY, 2, (int)size + 2, COLOUR_ACCENT);
+        box->caretX = smoothTowards(box->caretX, cursorX, 35, dt);
+        box->caretY = smoothTowards(box->caretY, cursorY, 35, dt);
+        float sinceTyping = (float)(GetTime() - box->lastChange);
+        float alpha = sinceTyping < 0.6f ? 1.0f : 0.55f + 0.45f * cosf((sinceTyping - 0.6f) * 5);
+        DrawRectangleRec(Rectangle{ box->caretX - 2, box->caretY - 1, 6, size + 4 }, Fade(COLOUR_ACCENT, 0.12f * alpha));
+        DrawRectangleRec(Rectangle{ box->caretX, box->caretY, 2, size + 2 }, Fade(COLOUR_ACCENT, alpha));
+    } else {
+        box->caretPlaced = false;
     }
+
     if (box->codeMode) {
         EndScissorMode();
         // A scroll bar when there's more code than fits
@@ -410,7 +513,7 @@ void drawCodeBox(CodeBox *box, int highlightLine) {
         if (lines > visibleLines) {
             float barHeight = (area.height - 8) * visibleLines / lines;
             float barY = area.y + 4 + (area.height - 8 - barHeight) * box->firstLine / (lines - visibleLines);
-            DrawRectangle((int)(area.x + area.width - 7), (int)barY, 4, (int)barHeight, Color{ 90, 95, 110, 255 });
+            DrawRectangleRounded(Rectangle{ area.x + area.width - 7, barY, 4, barHeight }, 1, 4, Color{ 90, 95, 110, 255 });
         }
     }
 }

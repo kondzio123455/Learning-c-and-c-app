@@ -1,6 +1,7 @@
 #include "app.h"
 #include "ui.h"
-#include "effects.h"
+#include "fx.h"
+#include "sound.h"
 #include <cstdio>
 #include <cstring>
 
@@ -127,7 +128,7 @@ void drawTestSetup(App *app) {
         app->screen = SCREEN_MENU;
         return;
     }
-    drawBold("TEST MODE", 30, 16, 34, COLOUR_ACCENT);
+    drawTitle("TEST MODE", 30, 14, 36, COLOUR_ACCENT);
     drawPlayerSwitch(app, SCREEN_WIDTH - 420.0f, 14);
     drawWrapped("10 questions from the chapters you pick: a mix of the levels' own questions and new ones in the "
                 "same style. It works like the real test - no hints, no lessons or slides, and one try at each. "
@@ -166,7 +167,7 @@ void drawTestRunning(App *app, float dt) {
     updateCodePhase(app);                          // typing, and Ctrl/Cmd + Enter submits
     if (app->testState != TEST_RUNNING) return;    // that was the last answer
 
-    drawBold("TEST", 30, 16, 30, COLOUR_ACCENT);
+    drawTitle("TEST", 30, 14, 32, COLOUR_ACCENT);
     drawText(TextFormat("Question %d of %d", app->testIndex + 1, TEST_LENGTH), 120, 26, 18, COLOUR_TEXT);
     // A dot for each question: answered, this one, still to come
     for (int i = 0; i < TEST_LENGTH; i++) {
@@ -188,7 +189,7 @@ void drawTestRunning(App *app, float dt) {
         app->confirmStopTest = true;
     }
 
-    DrawRectangle(150, 80, SCREEN_WIDTH - 300, SCREEN_HEIGHT - 92, COLOUR_PANEL);
+    drawPanel(Rectangle{ 150, 80, SCREEN_WIDTH - 300.0f, SCREEN_HEIGHT - 92.0f });
     drawTaskArea(app, 175, 96, SCREEN_WIDTH - 350.0f, SCREEN_HEIGHT - 62.0f);
 }
 
@@ -202,7 +203,7 @@ void drawTestResults(App *app) {
     for (int i = 0; i < TEST_LENGTH; i++) {
         if (app->testQuestions[i].correct) score++;
     }
-    drawBold("TEST RESULTS", 30, 16, 30, COLOUR_ACCENT);
+    drawTitle("TEST RESULTS", 30, 14, 32, COLOUR_ACCENT);
     Color scoreColour = COLOUR_BAD;
     if (score >= 5) scoreColour = COLOUR_ACCENT;
     if (score >= 7) scoreColour = COLOUR_GOOD;
@@ -234,7 +235,7 @@ void drawTestResults(App *app) {
     float width = SCREEN_WIDTH - x - 36;
     float y = 106;
     Rectangle page = { x - 16, 92, width + 32, SCREEN_HEIGHT - 172.0f };
-    DrawRectangleRec(page, COLOUR_PANEL);
+    drawPanel(page);
     beginClip(page.x, page.y, page.width, page.height);
     drawText(TextFormat("Question %d - Level %d: %s", app->testSelected + 1, q->level, getLevel(q->level)->title), x, y, 14, COLOUR_MUTED);
     y += 22;
@@ -264,7 +265,7 @@ void drawTestResults(App *app) {
 }
 
 void testScreen(App *app) {
-    ClearBackground(COLOUR_BG);
+    drawBackground();
     if (app->testState == TEST_SETUP) drawTestSetup(app);
     else if (app->testState == TEST_RUNNING) drawTestRunning(app, GetFrameTime());
     else drawTestResults(app);

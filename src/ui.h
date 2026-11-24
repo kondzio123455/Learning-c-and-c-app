@@ -3,18 +3,7 @@
 
 #include "raylib.h"
 #include "pool.h"
-
-// ---------- Colours used everywhere ----------
-const Color COLOUR_BG = { 24, 26, 32, 255 };
-const Color COLOUR_PANEL = { 34, 37, 46, 255 };
-const Color COLOUR_CODE_BG = { 18, 20, 26, 255 };
-const Color COLOUR_TEXT = { 225, 228, 235, 255 };
-const Color COLOUR_MUTED = { 140, 146, 160, 255 };
-const Color COLOUR_ACCENT = { 250, 205, 70, 255 };    // yellow
-const Color COLOUR_GOOD = { 110, 210, 120, 255 };     // green
-const Color COLOUR_BAD = { 255, 135, 120, 255 };      // soft red
-const Color COLOUR_BUTTON = { 55, 60, 75, 255 };
-const Color COLOUR_BUTTON_HOVER = { 78, 85, 105, 255 };
+#include "theme.h"   // the colours, fonts and shapes
 
 // ---------- Text (the font is monospace: every character is the same width) ----------
 void loadFonts();
@@ -26,6 +15,9 @@ float charWidth(float size);
 float lineHeight(float size);
 float drawWrapped(const char *text, float x, float y, float width, float size, Color colour);
 float wrappedHeight(const char *text, float width, float size);
+void drawTitle(const char *text, float x, float y, float size, Color colour);   // Inter, for titles
+float titleWidth(const char *text, float size);
+void drawGlowTitle(const char *text, float x, float y, float size, Color colour, float glow);   // with a soft glow behind it
 
 // ---------- Stars (3 = solved without hints) ----------
 void drawStar(float x, float y, float size, Color colour);
@@ -33,7 +25,18 @@ void drawStars(float x, float y, int count, float size);
 
 // ---------- The view: the 1280 x 720 game, scaled to fit the window ----------
 void setView(float scale, float offsetX, float offsetY);
+float getViewScale();
 void beginClip(float x, float y, float width, float height);   // like BeginScissorMode, in game coordinates
+
+// ---------- Panels and backgrounds ----------
+void drawBackground();                          // the room behind every screen
+void drawBar(float x, float y, float width, float height);   // a bar along the top of a screen
+void drawPanel(Rectangle area);                 // a rounded panel with a soft shadow
+void drawPopupBox(Rectangle area);              // a panel with a brass edge, for windows over the screen
+void drawPanelCover(Rectangle area, float alpha);   // covers a panel (for fading in what's on it)
+void drawCodeBackground(Rectangle area);        // the dark rounded box behind a piece of code
+void drawSoftShadow(Rectangle area, float radius, float size, float alpha);
+float roundnessFor(Rectangle area, float radius);   // a corner radius in pixels, as raylib's "roundness"
 
 // ---------- Buttons ----------
 void blockButtons(bool blocked);   // true while a window is open over the screen

@@ -2,7 +2,7 @@
 #include "lab1.h"
 #include "lab2.h"
 #include "ui.h"
-#include "effects.h"
+#include "fx.h"
 #include <cmath>
 #include <cstdio>
 
@@ -33,6 +33,8 @@ float pocketY[6] = { FELT_TOP, FELT_TOP, FELT_TOP,
 // ============================================================
 
 // Level 4: the function the game calls when you pot one of your balls
+bool tableEffects = true;
+
 void addPoint(int *score) {
     (*score)++;
 }
@@ -299,7 +301,7 @@ void bounceOffCushions(Ball *ball) {
     if (ball->y < top)    { ball->y = top;    ball->vy = -ball->vy * CUSHION_BOUNCE; bounced = true; }
     if (ball->y > bottom) { ball->y = bottom; ball->vy = -ball->vy * CUSHION_BOUNCE; bounced = true; }
 
-    if (bounced && speedBefore > 120) playSound(SOUND_CUSHION, speedBefore / 1200);
+    if (tableEffects && bounced && speedBefore > 120) fxCushionHit(speedBefore);
 }
 
 void checkPockets(Game *game, Ball *ball) {
@@ -319,8 +321,7 @@ void checkPockets(Game *game, Ball *ball) {
             game->sinkFromY[n] = ball->y;
             game->sinkToX[n] = pocketX[p];
             game->sinkToY[n] = pocketY[p];
-            playSound(SOUND_POCKET, 0.9f);
-            spawnSparks(pocketX[p], pocketY[p], Color{ 200, 200, 200, 255 }, 10, 90);
+            if (tableEffects) fxBallPotted(game, ball->number, p);   // sound, a burst of light, "+1" (fx.cpp)
 
             // Remember which object balls went down this shot
             if (ball->number != 0) {
@@ -365,11 +366,8 @@ void handleCollisions(Game *game) {
                     b->vx += closingSpeed * nx;
                     b->vy += closingSpeed * ny;
 
-                    if (closingSpeed > 40) playSound(SOUND_CLICK, closingSpeed / 900);
-                    if (closingSpeed > 700) {
-                        spawnSparks(a->x + nx * BALL_RADIUS, a->y + ny * BALL_RADIUS, WHITE, 6, 160);
-                        shakeScreen(closingSpeed / 400);
-                    }
+                    // A click, and for hard hits sparks, shake and hit-stop (fx.cpp)
+                    if (tableEffects && closingSpeed > 40) fxBallsHit(a->x + nx * BALL_RADIUS, a->y + ny * BALL_RADIUS, closingSpeed);
                 }
             }
         }
@@ -773,19 +771,23 @@ void drawCueStick(Game *game, float aimX, float aimY, float power, float strike,
 
 // The aim line: dots to where the cue ball first hits something. Upgrades add a
 // "ghost ball" where it will touch the object ball, and where that ball will go.
-void drawAimGuide(Game *game, float aimX, float aimY, bool showGhost, bool showPath) {
+// Where does the aim line first touch something? Works out the aim direction
+// (dirX, dirY), how far the cue ball travels before it touches a ball or a cushion
+// (hitDistance) and which ball it hits (hitBall, or -1 for a cushion).
+// Used by both the 2D and the 3D aim guide.
+bool aimContact(Game *game, float aimX, float aimY, float *dirX, float *dirY, float *hitDistance, int *hitBall) {
     Ball *cue = &game->balls[0];
     float dx = aimX - cue->x;
     float dy = aimY - cue->y;
     float length = sqrtf(dx * dx + dy * dy);
-    if (length == 0) return;
+    if (length == 0) return false;
     dx = dx / length;
     dy = dy / length;
 
     // How far until the cue ball touches another ball? For each ball, find the
     // distance along the aim line where the two centres are 2 radiuses apart.
-    float hitDistance = 100000;
-    int hitBall = -1;
+    *hitDistance = 100000;
+    *hitBall = -1;
     for (int n = 1; n < BALL_COUNT; n++) {
         Ball *ball = &game->balls[n];
         if (ball->pocketed) continue;
@@ -797,22 +799,32 @@ void drawAimGuide(Game *game, float aimX, float aimY, bool showGhost, bool showP
         float touch = (BALL_RADIUS * 2) * (BALL_RADIUS * 2);
         if (sideSquared < touch) {
             float d = along - sqrtf(touch - sideSquared);
-            if (d < hitDistance) {
-                hitDistance = d;
-                hitBall = n;
+            if (d < *hitDistance) {
+                *hitDistance = d;
+                *hitBall = n;
             }
         }
     }
 
     // If no ball is hit, the line stops at the cushion
-    if (hitBall == -1) {
+    if (*hitBall == -1) {
         float left = FELT_LEFT + BALL_RADIUS, right = FELT_LEFT + FELT_WIDTH - BALL_RADIUS;
         float top = FELT_TOP + BALL_RADIUS, bottom = FELT_TOP + FELT_HEIGHT - BALL_RADIUS;
-        if (dx > 0) hitDistance = fminf(hitDistance, (right - cue->x) / dx);
-        if (dx < 0) hitDistance = fminf(hitDistance, (left - cue->x) / dx);
-        if (dy > 0) hitDistance = fminf(hitDistance, (bottom - cue->y) / dy);
-        if (dy < 0) hitDistance = fminf(hitDistance, (top - cue->y) / dy);
+        if (dx > 0) *hitDistance = fminf(*hitDistance, (right - cue->x) / dx);
+        if (dx < 0) *hitDistance = fminf(*hitDistance, (left - cue->x) / dx);
+        if (dy > 0) *hitDistance = fminf(*hitDistance, (bottom - cue->y) / dy);
+        if (dy < 0) *hitDistance = fminf(*hitDistance, (top - cue->y) / dy);
     }
+    *dirX = dx;
+    *dirY = dy;
+    return true;
+}
+
+void drawAimGuide(Game *game, float aimX, float aimY, bool showGhost, bool showPath) {
+    Ball *cue = &game->balls[0];
+    float dx, dy, hitDistance;
+    int hitBall;
+    if (!aimContact(game, aimX, aimY, &dx, &dy, &hitDistance, &hitBall)) return;
 
     // Dotted line up to the contact point
     for (float d = BALL_RADIUS + 6; d < hitDistance; d += 10) {

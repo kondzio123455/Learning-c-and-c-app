@@ -1,8 +1,12 @@
 #include "raylib.h"
 #include "rlgl.h"
 #include "app.h"
+#include "render3d.h"
+#include "anim.h"
+#include "progression.h"
 #include "ui.h"
-#include "effects.h"
+#include "fx.h"
+#include "sound.h"
 #include <cmath>
 #include <cstring>
 
@@ -72,7 +76,9 @@ void setupApp(App *app) {
 
     app->phaseTimer = 0;
     app->wrongTimer = 0;
-    app->bannerTimer = 0;
+    app->correctTimer = 10;
+    app->hintTimer = 10;
+    app->answerArea = Rectangle{ 0, 0, 0, 0 };
 
     app->codexLevel = 1;
     app->confirmReset = false;
@@ -157,12 +163,11 @@ void drawPlayerPicker(App *app) {
     int slot = app->pickingSlot;
     DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, Fade(BLACK, 0.7f));
     Rectangle box = { 330, 50, 620, 620 };
-    DrawRectangleRec(box, COLOUR_PANEL);
-    DrawRectangleLinesEx(box, 2, COLOUR_ACCENT);
+    drawPopupBox(box);
     float x = box.x + 30;
     float y = box.y + 24;
 
-    drawBold(TextFormat("Who is Player %d?", slot + 1), x, y, 26, COLOUR_ACCENT);
+    drawTitle(TextFormat("Who is Player %d?", slot + 1), x, y, 28, COLOUR_ACCENT);
     y += 42;
     y += drawWrapped("Everyone has their own saved progress. Pick your name, or add yourself as a new player.",
                      x, y, box.width - 60, 15, COLOUR_MUTED) + 16;
@@ -172,7 +177,7 @@ void drawPlayerPicker(App *app) {
         Profile *profile = &app->profiles[i];
         Rectangle row = { x, y, 400, 36 };
         bool hover = CheckCollisionPointRec(mouse, row);
-        DrawRectangleRec(row, hover ? COLOUR_BUTTON_HOVER : COLOUR_BUTTON);
+        DrawRectangleRounded(row, roundnessFor(row, BUTTON_RADIUS), 8, hover ? COLOUR_BUTTON_HOVER : COLOUR_BUTTON);
         drawBold(profile->name, row.x + 12, row.y + 9, 17, COLOUR_TEXT);
         const char *where = TextFormat("Level %d", profile->levelsDone + 1);
         if (profile->levelsDone >= LEVEL_COUNT) where = "all done";
@@ -251,40 +256,35 @@ void toggleFullScreen();
 // Main menu
 // ============================================================
 
-// A few balls drifting around behind the menu
-const int MENU_BALLS = 7;
-float menuX[MENU_BALLS], menuY[MENU_BALLS], menuVX[MENU_BALLS], menuVY[MENU_BALLS], menuRoll[MENU_BALLS];
-int menuNumber[MENU_BALLS] = { 0, 1, 9, 8, 3, 14, 6 };
+// When the menu was last opened (the title drops in each time)
+double menuOpenedAt = 0;
 
-void setupMenuBalls() {
-    for (int i = 0; i < MENU_BALLS; i++) {
-        menuX[i] = (float)GetRandomValue(650, 1200);
-        menuY[i] = (float)GetRandomValue(120, 640);
-        menuVX[i] = (float)GetRandomValue(-60, 60);
-        menuVY[i] = (float)GetRandomValue(-60, 60);
-        menuRoll[i] = 0;
+// "POINTER POOL": each letter drops in and bounces, one after another,
+// then they all bob gently in a wave
+void drawMenuTitle() {
+    const char *title = "POINTER POOL";
+    float size = 76;
+    float time = (float)(GetTime() - menuOpenedAt);
+    char letter[2] = { 0, 0 };
+    char before[16];
+    for (int i = 0; title[i] != '\0'; i++) {
+        float t = clamp01((time - i * 0.05f) / 0.8f);      // this letter's own 0 to 1
+        float y = 104 - (1 - easeOutBounce(t)) * 170;      // falls from above and bounces
+        y += sinf((float)GetTime() * 2.2f + i * 0.45f) * 3 * t;
+        strncpy(before, title, i);                         // the letters before this one decide where it goes
+        before[i] = '\0';
+        letter[0] = title[i];
+        float glow = 0.75f + 0.25f * sinf((float)GetTime() * 2);
+        drawGlowTitle(letter, 90 + titleWidth(before, size), y, size, Fade(COLOUR_ACCENT, clamp01(t * 3)), glow);
     }
 }
 
 void menuScreen(App *app) {
-    float dt = GetFrameTime();
-    ClearBackground(COLOUR_BG);
+    // The 3D table behind everything, darkened on the left so the menu is easy to read
+    drawMenuView();
+    DrawRectangleGradientH(0, 0, 820, SCREEN_HEIGHT, Fade(BLACK, 0.85f), Fade(BLACK, 0));
 
-    // Move the drifting balls and bounce them off the edges of their area
-    for (int i = 0; i < MENU_BALLS; i++) {
-        menuX[i] += menuVX[i] * dt;
-        menuY[i] += menuVY[i] * dt;
-        if (menuX[i] < 640 || menuX[i] > 1240) menuVX[i] = -menuVX[i];
-        if (menuY[i] < 100 || menuY[i] > 660) menuVY[i] = -menuVY[i];
-        float speed = sqrtf(menuVX[i] * menuVX[i] + menuVY[i] * menuVY[i]);
-        menuRoll[i] += speed * dt / 26;
-        float dx = 1, dy = 0;
-        if (speed > 0) { dx = menuVX[i] / speed; dy = menuVY[i] / speed; }
-        drawBallRolling(menuNumber[i], menuX[i], menuY[i], 26, menuRoll[i], dx, dy, 0.9f);
-    }
-
-    float glow = 0.85f + 0.15f * sinf((float)GetTime() * 2);
-    drawBold("POINTER POOL", 90, 120, 64, Fade(COLOUR_ACCENT, glow));
+    drawMenuTitle();
     drawText("Learn C and C++ pointers, one shot at a time.", 94, 200, 20, COLOUR_TEXT);
     drawText("Built from the Pointers, Memory, Classes and Linked List lectures,", 94, 232, 15, COLOUR_MUTED);
     drawText("and Labs 1 and 2.", 94, 252, 15, COLOUR_MUTED);
@@ -361,10 +361,10 @@ void menuScreen(App *app) {
 // ============================================================
 
 void codexScreen(App *app) {
-    ClearBackground(COLOUR_BG);
+    drawBackground();
     if (IsKeyPressed(KEY_ESCAPE) && !app->showSlide) app->screen = SCREEN_MENU;
 
-    drawBold("Lessons", 30, 18, 34, COLOUR_ACCENT);
+    drawTitle("Lessons", 30, 16, 36, COLOUR_ACCENT);
     drawText("All 54 levels are open here to read and practise. (The game still unlocks them one at a time.)", 30, 60, 16, COLOUR_MUTED);
     if (!app->showSlide) drawPlayerSwitch(app, SCREEN_WIDTH - 420.0f, 14);
 
@@ -394,10 +394,10 @@ void codexScreen(App *app) {
     Level *level = getLevel(app->codexLevel);
     float x = 450;
     Rectangle page = { x - 20, 88, SCREEN_WIDTH - x, SCREEN_HEIGHT - 158.0f };
-    DrawRectangleRec(page, COLOUR_PANEL);
+    drawPanel(page);
     drawText(TextFormat("Level %d - Chapter %d: %s", app->codexLevel, level->chapter, chapterName(level->chapter)),
              x, 100, 14, COLOUR_MUTED);
-    drawBold(level->title, x, 120, 28, COLOUR_TEXT);
+    drawTitle(level->title, x, 118, 30, COLOUR_TEXT);
     drawLessonContent(level, x, 162, SCREEN_WIDTH - x - 40);
 
     if (!app->showSlide) {
@@ -417,75 +417,26 @@ void codexScreen(App *app) {
 // ============================================================
 
 void progressScreen(App *app) {
-    ClearBackground(COLOUR_BG);
+    drawBackground();
     if (IsKeyPressed(KEY_ESCAPE)) app->screen = SCREEN_MENU;
 
-    drawBold("Progress", 30, 16, 34, COLOUR_ACCENT);
+    drawTitle("Progress", 30, 14, 36, COLOUR_ACCENT);
     drawText(TextFormat("%s: %d of %d concepts done. Pot one of your balls to unlock the next one.",
                         app->learner->name, app->learner->levelsDone, LEVEL_COUNT), 30, 56, 15, COLOUR_MUTED);
     drawPlayerSwitch(app, SCREEN_WIDTH - 420.0f, 14);
 
-    Rectangle bar = { 30, 80, SCREEN_WIDTH - 60.0f, 10 };
-    DrawRectangleRec(bar, COLOUR_PANEL);
-    DrawRectangle(30, 80, (int)(bar.width * app->learner->levelsDone / LEVEL_COUNT), 10, COLOUR_GOOD);
-
-    // One row per chapter (long chapters wrap onto a second row)
-    float rowY = 104;
-    int column = 0;
-    Vector2 mouse = GetMousePosition();
-    for (int n = 1; n <= LEVEL_COUNT; n++) {
-        Level *level = getLevel(n);
-        bool newChapter = (n == 1) || getLevel(n - 1)->chapter != level->chapter;
-        if (newChapter) {
-            if (n > 1) rowY += 64;
-            column = 0;
-            drawBold(TextFormat("%d. %s", level->chapter, chapterName(level->chapter)), 30, rowY + 6, 14, COLOUR_TEXT);
-        } else if (column == 9) {
-            rowY += 64;
-            column = 0;
-        }
-
-        Rectangle node = { 230.0f + column * 112, rowY, 104, 54 };
-        if (column > 0) DrawLineEx(Vector2{ node.x - 8, node.y + 27 }, Vector2{ node.x, node.y + 27 }, 2, Color{ 70, 75, 90, 255 });
-
-        Color background = Color{ 40, 43, 52, 255 };
-        Color border = Color{ 70, 75, 90, 255 };
-        Color textColour = Color{ 90, 95, 110, 255 };
-        if (n <= app->learner->levelsDone) {
-            background = Color{ 30, 60, 40, 255 };
-            border = COLOUR_GOOD;
-            textColour = COLOUR_TEXT;
-        } else if (n == currentLevel(app)) {
-            float pulse = 0.6f + 0.4f * sinf((float)GetTime() * 4);
-            background = Color{ 70, 62, 20, 255 };
-            border = Fade(COLOUR_ACCENT, pulse);
-            textColour = COLOUR_TEXT;
-        }
-        DrawRectangleRec(node, background);
-        DrawRectangleLinesEx(node, 2, border);
-        drawBold(TextFormat("%d", n), node.x + 6, node.y + 5, 14, textColour);
-        drawText(level->shortName, node.x + 6, node.y + 23, 13, textColour);
-        if (reached(app, n)) drawStars(node.x + 62, node.y + 12, app->learner->stars[n], 5);
-
-        // Click a box you've reached to read it
-        if (reached(app, n) && CheckCollisionPointRec(mouse, node) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-            app->codexLevel = n;
-            app->screen = SCREEN_CODEX;
-        }
-        column++;
+    // How many concepts are done, and the player's XP
+    Rectangle bar = { 30, 80, 560, 8 };
+    DrawRectangleRounded(bar, 1, 8, COLOUR_PANEL);
+    float done = bar.width * app->learner->levelsDone / LEVEL_COUNT;
+    if (done > 2) {
+        DrawRectangleRounded(Rectangle{ bar.x, bar.y - 3, done, 14 }, 1, 8, Fade(COLOUR_GOOD, 0.15f));
+        DrawRectangleRounded(Rectangle{ bar.x, bar.y, done, 8 }, 1, 8, COLOUR_GOOD);
     }
+    drawXpBar(app->learner, 660, 56, 590);
 
-    // Upgrades, like the unlocks in The Farmer Was Replaced
-    float upY = SCREEN_HEIGHT - 104.0f;
-    drawBold("Upgrades:", 30, upY, 15, COLOUR_TEXT);
-    const char *names[3] = { "Ghost ball (finish Ch 1)", "Ball path (finish Ch 3)", "Golden cue (finish Ch 7)" };
-    int needs[3] = { AIM_GUIDE_LEVEL, BALL_PATH_LEVEL, GOLD_CUE_LEVEL };
-    for (int i = 0; i < 3; i++) {
-        bool unlocked = app->learner->levelsDone >= needs[i];
-        Color colour = Color{ 90, 95, 110, 255 };
-        if (unlocked) colour = COLOUR_GOOD;
-        drawText(TextFormat("%s %s", unlocked ? "[x]" : "[ ]", names[i]), 140 + i * 300.0f, upY, 15, colour);
-    }
+    // The skill tree: every level, the upgrades, and the paths between them (progression.cpp)
+    drawSkillTree(app, 104);
 
     // Buttons
     if (button(Rectangle{ SCREEN_WIDTH - 170.0f, SCREEN_HEIGHT - 56.0f, 150, 40 }, "Back")) app->screen = SCREEN_MENU;
@@ -496,6 +447,7 @@ void progressScreen(App *app) {
         if (app->confirmReset) {
             app->learner->levelsDone = 0;
             for (int n = 0; n <= LEVEL_COUNT; n++) app->learner->stars[n] = 0;
+            app->learner->xp = 0;
             saveProfile(app->learner);
             app->learner->lessonShown = false;
             app->learner->askCount = 0;
@@ -572,15 +524,21 @@ int main() {
     loadFonts();
     loadSounds();
     setupTableTextures();
+    setupRender3D();
     setupLevels();
     setupApp(&app);
-    setupMenuBalls();
+
+    Screen lastScreen = app.screen;
+    float fadeTimer = SCREEN_FADE_TIME;   // the first screen fades in too
+    menuOpenedAt = GetTime();
 
     while (!WindowShouldClose() && !app.quit) {
         float dt = GetFrameTime();
         updateParticles(dt);
         updateFloatingTexts(dt);
-        if (app.bannerTimer > 0) app.bannerTimer -= dt;
+        updateShake(dt);
+        updateHitStop(dt);
+        updateUnlockCard(dt);
 
         // F5 unlocks every level for whoever's progress is showing (handy for demos)
         if (IsKeyPressed(KEY_F5) && app.learner != nullptr) {
@@ -601,6 +559,11 @@ int main() {
         SetMouseOffset((int)-offsetX, (int)-offsetY);   // so GetMousePosition() gives game coordinates
         SetMouseScale(1 / scale, 1 / scale);
 
+        // The 3D table is drawn into its own image first (it can't be drawn
+        // in the middle of the scaled 2D frame), then placed on the screen by playScreen
+        if (app.screen == SCREEN_PLAY) renderTable3D(&app, GetFrameTime());
+        if (app.screen == SCREEN_MENU) renderMenu3D(GetFrameTime());
+
         BeginDrawing();
         ClearBackground(COLOUR_BG);   // the border round the game, if the window is a different shape
         rlPushMatrix();               // everything below is drawn scaled to fit
@@ -618,12 +581,25 @@ int main() {
         // Effects go on top of every screen
         drawParticles();
         drawFloatingTexts();
-        drawBanner(&app);
+        drawUnlockCard();
+
+        // A new screen fades in from black
+        if (app.screen != lastScreen) {
+            lastScreen = app.screen;
+            fadeTimer = SCREEN_FADE_TIME;
+            if (app.screen == SCREEN_MENU) menuOpenedAt = GetTime();
+        }
+        if (fadeTimer > 0) {
+            float left = fadeTimer / SCREEN_FADE_TIME;   // 1 at the start, 0 at the end
+            DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, Fade(BLACK, left * left));
+            fadeTimer -= dt;
+        }
 
         rlPopMatrix();
         EndDrawing();
     }
 
+    unloadRender3D();
     unloadTableTextures();
     unloadSounds();
     unloadFonts();

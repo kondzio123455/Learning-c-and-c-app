@@ -91,9 +91,9 @@ struct App {
     // ---------- Animation ----------
     float phaseTimer;           // time since the phase changed (panels fade in)
     float wrongTimer;           // > 0 after a wrong answer: the answer box shakes
-    float bannerTimer;          // > 0 while an unlock banner is showing
-    char bannerTitle[80];
-    char bannerText[120];
+    float correctTimer;         // time since a right answer (a green light sweeps over it)
+    float hintTimer;            // time since a new hint or message appeared (it bounces in)
+    Rectangle answerArea;       // where the answer is on screen (for the sweep and sparkles)
 
     // ---------- Welcome back, and Rewind ----------
     Phase afterWelcome;         // where to go after the welcome panel
@@ -146,7 +146,6 @@ void playScreen(App *app);
 void startPractice(App *app, int level);
 void practiceScreen(App *app);
 float drawLessonContent(Level *level, float x, float y, float width);
-void drawBanner(App *app);
 void startRewind(App *app, int level);
 void endRewind(App *app);
 void saveShot(App *app);       // remembers the shot's question

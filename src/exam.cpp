@@ -1,6 +1,7 @@
 #include "app.h"
 #include "ui.h"
-#include "effects.h"
+#include "fx.h"
+#include "sound.h"
 #include "exam_questions.h"
 #include <cstdio>
 #include <cstring>
@@ -307,7 +308,7 @@ void drawExamSetup(App *app) {
         exam.compilerChecked = true;
     }
 
-    drawBold("EXAM MODE - Coding Exam 2", 30, 16, 32, COLOUR_ACCENT);
+    drawTitle("EXAM MODE - Coding Exam 2", 30, 14, 34, COLOUR_ACCENT);
     drawWrapped("Like the real exam: 6 questions in 1 hour, from Lab 1 and the Pointers & Linked List lab (Lab 2). "
                 "You write each whole function, and a premade main tests it - your code is really compiled and run, "
                 "and main prints yes or no for each test. Run the tests as often as you like. At the end every "
@@ -393,9 +394,9 @@ void drawExamRunning(float dt) {
     }
 
     // ---------- Top bar ----------
-    DrawRectangle(0, 0, SCREEN_WIDTH, 56, COLOUR_PANEL);
+    drawBar(0, 0, SCREEN_WIDTH, 56);
     if (exam.timed) {
-        drawBold("EXAM", 20, 14, 26, COLOUR_ACCENT);
+        drawTitle("EXAM", 20, 12, 28, COLOUR_ACCENT);
         for (int i = 0; i < exam.count; i++) {
             Rectangle tab = { 110 + i * 84.0f, 10, 76, 36 };
             ExamRun *run = &exam.lastRun[i];
@@ -425,7 +426,7 @@ void drawExamRunning(float dt) {
             exam.confirmFinish = true;
         }
     } else {
-        drawBold("PRACTISE ONE QUESTION", 20, 16, 22, COLOUR_ACCENT);
+        drawTitle("PRACTISE ONE QUESTION", 20, 14, 24, COLOUR_ACCENT);
         drawText(TextFormat("No timer.  %s", clockText(exam.timeUsed)), 360, 21, 15, COLOUR_MUTED);
         if (!waiting && button(Rectangle{ SCREEN_WIDTH - 170.0f, 10, 150, 36 }, "Back")) {
             exam.state = EXAM_SETUP;
@@ -487,7 +488,7 @@ void drawExamRunning(float dt) {
     if (waiting) {
         DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, Fade(BLACK, 0.45f));
         const char *message = "Compiling and running your code...";
-        DrawRectangle(SCREEN_WIDTH / 2 - 260, SCREEN_HEIGHT / 2 - 40, 520, 80, COLOUR_PANEL);
+        drawPopupBox(Rectangle{ SCREEN_WIDTH / 2 - 260.0f, SCREEN_HEIGHT / 2 - 40.0f, 520, 80 });
         drawBold(message, SCREEN_WIDTH / 2.0f - textWidth(message, 20) / 2, SCREEN_HEIGHT / 2.0f - 12, 20, COLOUR_ACCENT);
         exam.pendingRun = 1;
     }
@@ -537,7 +538,7 @@ void drawExamResults(App *app) {
     for (int i = 0; i < exam.count; i++) total += questionMark(&exam.marks[i]);
     int percent = (int)(total / exam.count * 100 + 0.5f);
 
-    drawBold(exam.timed ? "EXAM RESULTS" : "RESULT", 30, 14, 30, COLOUR_ACCENT);
+    drawTitle(exam.timed ? "EXAM RESULTS" : "RESULT", 30, 12, 32, COLOUR_ACCENT);
     Color colour = percent >= 70 ? COLOUR_GOOD : (percent >= 40 ? COLOUR_ACCENT : COLOUR_BAD);
     drawBold(TextFormat("%d%%", percent), 290, 6, 44, colour);
     drawText(TextFormat("Time used: %s.  Click a question to compare your code with a correct answer.", clockText(exam.timeUsed)),
@@ -599,7 +600,7 @@ void drawExamResults(App *app) {
 }
 
 void examScreen(App *app) {
-    ClearBackground(COLOUR_BG);
+    drawBackground();
     if (exam.state == EXAM_SETUP) drawExamSetup(app);
     else if (exam.state == EXAM_RUNNING) drawExamRunning(GetFrameTime());
     else if (exam.state == EXAM_MARKING) drawExamMarking();

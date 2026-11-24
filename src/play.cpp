@@ -1,8 +1,13 @@
 #include "app.h"
+#include "render3d.h"
+#include "memory.h"
+#include "progression.h"
+#include "anim.h"
 #include "guide.h"
 #include "rlgl.h"
 #include "ui.h"
-#include "effects.h"
+#include "fx.h"
+#include "sound.h"
 #include <cstdio>
 #include <cstring>
 #include <cmath>
@@ -58,13 +63,23 @@ void useMadeUpQuestion(App *app) {
     app->usingMadeUp = true;
 }
 
-// The banner that slides down from the top when you unlock something
-void showBanner(App *app, const char *title, const char *text) {
-    snprintf(app->bannerTitle, sizeof(app->bannerTitle), "%s", title);
-    snprintf(app->bannerText, sizeof(app->bannerText), "%s", text);
-    app->bannerTimer = 3.2f;
+// Unlocking something shows the unlock card (progression.cpp), with confetti
+void showBanner(int badge, const char *heading, const char *title, const char *text) {
+    showUnlockCard(badge, heading, title, text);
     spawnConfetti(SCREEN_WIDTH / 2.0f, 120, 70);
-    playSound(SOUND_UNLOCK, 0.7f);
+}
+
+// The start of a lesson for the unlock card: whole sentences, as many as fit in 'size'
+void firstSentences(const char *text, char *out, int size) {
+    int i = 0;
+    int lastEnd = 0;   // where the last whole sentence ended
+    while (text[i] != '\0' && i < size - 1) {
+        out[i] = text[i];
+        i++;
+        if (text[i - 1] == '.' && (text[i] == ' ' || text[i] == '\0')) lastEnd = i;
+    }
+    if (text[i] != '\0' && lastEnd > 0) i = lastEnd;   // cut at the end of a sentence
+    out[i] = '\0';
 }
 
 // Finishing a chapter unlocks an upgrade, like the upgrades in The Farmer Was Replaced
@@ -82,18 +97,32 @@ void completeLevel(App *app) {
     app->learner->lessonShown = false;   // the next level's lesson will show
     app->learner->askCount = 0;
 
+    giveXp(app->learner, 100);
+
+    // The unlock card: what was unlocked, and a line about it
+    char heading[80];
     char title[80];
-    char text[120];
-    snprintf(title, sizeof(title), "%s: LEVEL %d COMPLETE", app->learner->name, app->learner->levelsDone);
-    const char *upgrade = upgradeFor(app->learner->levelsDone);
+    char text[200];
+    int done = app->learner->levelsDone;
+    snprintf(heading, sizeof(heading), "%s: LEVEL %d COMPLETE", app->learner->name, done);
+    const char *upgrade = upgradeFor(done);
     if (upgrade != nullptr) {
+        const char *names[3] = { "Upgrade: ghost ball", "Upgrade: ball path", "Upgrade: the golden cue" };
+        int which = done == AIM_GUIDE_LEVEL ? 0 : done == BALL_PATH_LEVEL ? 1 : 2;
+        snprintf(title, sizeof(title), "%s", names[which]);
         snprintf(text, sizeof(text), "%s", upgrade);
-    } else if (app->learner->levelsDone < LEVEL_COUNT) {
-        snprintf(text, sizeof(text), "Unlocked: Level %d - %s", app->learner->levelsDone + 1, getLevel(app->learner->levelsDone + 1)->title);
+    } else if (done < LEVEL_COUNT) {
+        Level *next = getLevel(done + 1);
+        char sentence[180];
+        firstSentences(next->explanation, sentence, sizeof(sentence));
+        snprintf(title, sizeof(title), "Level %d: %s", done + 1, next->title);
+        snprintf(text, sizeof(text), "%s", sentence);
     } else {
-        snprintf(text, sizeof(text), "Every concept unlocked! Review mode is on.");
+        snprintf(title, sizeof(title), "Every concept!");
+        snprintf(text, sizeof(text), "You've unlocked all %d levels. Review mode is on: every shot asks about a level you've done.", LEVEL_COUNT);
     }
-    showBanner(app, title, text);
+    int badge = (upgrade == nullptr && done < LEVEL_COUNT) ? done + 1 : 0;
+    showBanner(badge, heading, title, text);
 }
 
 // ============================================================
@@ -127,6 +156,10 @@ void resetQuestion(App *app) {
     app->chosenCount = 0;
     app->solved = false;
     app->wrongTimer = 0;
+    app->correctTimer = 10;
+    app->hintTimer = 10;
+    app->answerBox.error = false;
+    app->callBox.error = false;
     setFeedback(app, "", false);
 }
 
@@ -223,6 +256,39 @@ void getAnswerText(App *app, char *out, int size) {
     }
 }
 
+// ============================================================
+// Right and wrong: how the answer reacts
+// ============================================================
+
+// How far up a new hint or message is: it drops in and bounces, then sits still
+float bounceIn(float time) {
+    if (time >= 0.6f) return 0;
+    return (1 - easeOutBounce(time / 0.6f)) * 18;
+}
+
+// Little green sparkles all along the edge of the answer
+void sparkleAlong(Rectangle area) {
+    if (area.width <= 0) return;
+    for (int i = 0; i < 18; i++) {
+        float t = i / 17.0f;
+        spawnSparkle(area.x + area.width * t, area.y + (i % 2 == 0 ? 0 : area.height), COLOUR_GOOD);
+    }
+}
+
+// A band of green light sweeps across the answer after a right answer
+void drawCorrectSweep(App *app) {
+    float t = app->correctTimer / 0.6f;
+    Rectangle area = app->answerArea;
+    if (t >= 1 || area.width <= 0) return;
+    float band = 140;
+    float bandX = area.x - band + (area.width + band) * easeOutCubic(t);
+    beginClip(area.x, area.y, area.width, area.height);
+    DrawRectangleGradientH((int)bandX, (int)area.y, (int)(band / 2), (int)area.height, Fade(COLOUR_GOOD, 0), Fade(COLOUR_GOOD, 0.45f));
+    DrawRectangleGradientH((int)(bandX + band / 2), (int)area.y, (int)(band / 2), (int)area.height, Fade(COLOUR_GOOD, 0.45f), Fade(COLOUR_GOOD, 0));
+    EndScissorMode();
+    DrawRectangleRoundedLinesEx(area, roundnessFor(area, 6), 8, 2, Fade(COLOUR_GOOD, 1 - t));
+}
+
 void runCode(App *app) {
     Game *game = &app->game;
     Level *level = getLevel(app->questionLevel);
@@ -252,6 +318,8 @@ void runCode(App *app) {
             setFeedback(app, result.feedback, false);
         }
         app->wrongTimer = 0.4f;   // shake the answer box
+        app->answerBox.error = true;   // and underline it in red until it's changed
+        app->hintTimer = 0;            // the explanation bounces in
         app->taskScroll = 100000; // scroll down to the explanation (it's limited to the end next frame)
         playSound(SOUND_WRONG, 0.5f);
         return;
@@ -269,6 +337,8 @@ void runCode(App *app) {
             app->callBox.focused = true;
             app->answerBox.focused = false;
             app->wrongTimer = 0.4f;
+            app->callBox.error = true;
+            app->hintTimer = 0;
             playSound(SOUND_WRONG, 0.5f);
             return;
         }
@@ -294,6 +364,10 @@ void runCode(App *app) {
         saveProfile(app->learner);
     }
     playSound(SOUND_CORRECT, 0.6f);
+    giveXp(app->learner, app->practising ? 10 : 20 + 10 * earned);   // 50 XP for a 3-star answer
+    app->correctTimer = 0;   // a green light sweeps over the answer
+    app->hintTimer = 0;
+    sparkleAlong(app->answerArea);
 
     // Trace questions get a pointer diagram: the data table after each line, like the slides
     app->hasDiagram = task->kind == TASK_TRACE && buildDiagram(task->code, &app->diagram);
@@ -323,6 +397,79 @@ void runCode(App *app) {
     app->callBox.focused = false;
 }
 
+extern float pocketX[6], pocketY[6];   // from pool.cpp
+
+// ============================================================
+// Moving the balls: hit-stop and slow motion
+// ============================================================
+// Normally the balls move once a frame, exactly as before. Two things change WHEN that happens
+// (never how): a big hit freezes them for a split second (hit-stop), and when the 8 is rolling
+// into a pocket, time slows down and the camera swings round it. In slow motion the physics
+// still moves in normal 1/60 s steps (so the shot ends exactly the same way); the steps just
+// come less often, and the 3D view slides the balls smoothly from one step to the next.
+
+const float SLOW_MOTION_SPEED = 0.25f;     // a quarter of normal speed
+const float PHYSICS_STEP = 1.0f / 60;
+bool slowMotion = false;
+float slowClock = 0;                       // time saved up towards the next step
+float slowAfterPot = 0;                    // keeps it going for a moment after the 8 drops
+Vector2 beforeStep[BALL_COUNT];            // where the balls were before the last step
+
+// Is the 8 rolling into a pocket? (close to one, heading straight for it)
+bool eightHeadingIn(Game *game) {
+    Ball *eight = &game->balls[8];
+    if (eight->pocketed) return false;
+    float speed = sqrtf(eight->vx * eight->vx + eight->vy * eight->vy);
+    if (speed < 20) return false;
+    for (int p = 0; p < 6; p++) {
+        float dx = pocketX[p] - eight->x;
+        float dy = pocketY[p] - eight->y;
+        float distance = sqrtf(dx * dx + dy * dy);
+        if (distance > 0 && distance < 110) {
+            float towards = (eight->vx * dx + eight->vy * dy) / (speed * distance);   // 1 = straight at it
+            if (towards > 0.93f) return true;
+        }
+    }
+    return false;
+}
+
+void endSlowMotion() {
+    slowMotion = false;
+    stopBallBlend();
+    setCinematicCamera(false, 0, 0);
+}
+
+void stepBalls(App *app, float dt) {
+    Game *game = &app->game;
+    if (hitStopping()) return;   // frozen for a moment after a big hit
+
+    if (!slowMotion && eightHeadingIn(game)) {
+        slowMotion = true;
+        slowClock = 0;
+        slowAfterPot = 1.0f;
+        for (int n = 0; n < BALL_COUNT; n++) beforeStep[n] = Vector2{ game->balls[n].x, game->balls[n].y };
+    }
+    if (!slowMotion) {
+        updateBalls(game, dt);   // normal speed: exactly as before
+        return;
+    }
+
+    // Slow motion: save up time, and take a normal step each time there's enough
+    slowClock += dt * SLOW_MOTION_SPEED;
+    while (slowClock >= PHYSICS_STEP) {
+        for (int n = 0; n < BALL_COUNT; n++) beforeStep[n] = Vector2{ game->balls[n].x, game->balls[n].y };
+        updateBalls(game, PHYSICS_STEP);
+        slowClock -= PHYSICS_STEP;
+    }
+    setBallBlend(beforeStep, slowClock / PHYSICS_STEP);
+    setCinematicCamera(true, game->balls[8].x, game->balls[8].y);
+
+    // Stop once the 8 has gone down (after a moment), or if it isn't going in after all
+    if (game->balls[8].pocketed) slowAfterPot -= dt;
+    if (!ballsMoving(game) && !game->balls[8].pocketed) endSlowMotion();
+    if (slowAfterPot <= 0 || (!game->balls[8].pocketed && !eightHeadingIn(game))) endSlowMotion();
+}
+
 // Called when the balls stop: apply the rules, then get the next shot ready
 void finishShot(App *app) {
     Game *game = &app->game;
@@ -337,7 +484,20 @@ void finishShot(App *app) {
         app->gameInProgress = false;
         playSound(SOUND_UNLOCK, 0.8f);
         spawnConfetti(SCREEN_WIDTH / 2.0f, 260, 120);
+        fxWin();   // fireworks
+        giveXp(app->playerProfile[game->winner], 150);
         return;
+    }
+
+    // XP for each of your own balls that went down, more in a combo
+    int own = 0;
+    for (int i = 0; i < game->pottedThisShotCount; i++) {
+        int number = game->pottedThisShot[i];
+        if (number != 8 && groupOf(number) == game->players[shooter].group) own++;
+    }
+    if (own > 0) {
+        int combo = comboCount(game);
+        giveXp(app->playerProfile[shooter], own * 10 + (combo > 1 ? 5 * (combo - 1) : 0));
     }
 
     // Tell the players what happened
@@ -397,20 +557,34 @@ void updateCodePhase(App *app) {
 }
 
 void updateAimPhase(App *app, float dt) {
-    Vector2 mouse = GetMousePosition();
-    bool onTable = mouse.x < PANEL_X - 10 && mouse.y > 60 && mouse.y < FELT_TOP + FELT_HEIGHT + RAIL + 10;
+    Ball *cue = &app->game.balls[0];
+    bool onTable = mouseOverTableView();
 
-    // The aim follows the mouse while it's over the table
-    if (onTable && !app->charging) {
-        app->aimX = mouse.x;
-        app->aimY = mouse.y;
+    if (!app->charging) {
+        if (isTopDownView()) {
+            // Top-down view: the aim follows the mouse, like the 2D table did
+            Vector2 point;
+            if (mouseOnTable(&point)) {
+                app->aimX = point.x;
+                app->aimY = point.y;
+            }
+        } else {
+            // 3D view: move the mouse left or right to turn the aim
+            // (or use A/D or the arrow keys; hold Shift to turn slowly)
+            float angle = atan2f(app->aimY - cue->y, app->aimX - cue->x);
+            bool fine = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+            if (onTable) angle += GetMouseDelta().x * (fine ? 0.001f : 0.004f);
+            float turn = (fine ? 0.15f : 1.0f) * dt;
+            if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) angle -= turn;
+            if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) angle += turn;
+            app->aimX = cue->x + cosf(angle) * 200;   // a point 200 pixels along the aim line
+            app->aimY = cue->y + sinf(angle) * 200;
+        }
     }
 
-    // Hold the button to charge the power, let go to shoot
+    // Hold the button to charge the power, let go to shoot (the aim stays still while charging)
     if (onTable && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) app->charging = true;
     if (app->charging && IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-        app->aimX = mouse.x;
-        app->aimY = mouse.y;
         app->power += 100 * dt;   // full power after 1 second
         if (app->power > 100) app->power = 100;
     }
@@ -444,11 +618,14 @@ void updateShotLog(App *app) {
 // Drawing: the top bar and the area under the table
 // ============================================================
 
+// The rounded panel down the right of the game screen
+const Rectangle SIDE_PANEL = { PANEL_X + 8.0f, 58, SCREEN_WIDTH - PANEL_X - 16.0f, SCREEN_HEIGHT - 60.0f };
+
 void drawTopBar(App *app) {
     Game *game = &app->game;
-    DrawRectangle(0, 0, SCREEN_WIDTH, 56, COLOUR_PANEL);
+    drawBar(0, 0, SCREEN_WIDTH, 56);
 
-    drawBold("POINTER POOL", 20, 8, 22, COLOUR_ACCENT);
+    drawTitle("POINTER POOL", 20, 6, 24, COLOUR_ACCENT);
     const char *levelText;
     if (app->reviewMode) levelText = TextFormat("Review: Level %d", app->questionLevel);
     else levelText = TextFormat("Level %d of %d: %s", currentLevel(app), LEVEL_COUNT, getLevel(currentLevel(app))->title);
@@ -459,6 +636,8 @@ void drawTopBar(App *app) {
         int left = ballsLeft(game, game->players[p].group);
         drawPlayerBox(&game->players[p], box, game->currentPlayer == p, game->tableOpen, left, true);
     }
+
+    drawXpBar(app->learner, 836, 10, 310);   // the shooter's XP (progression.cpp)
 
     Rectangle menuButton = { SCREEN_WIDTH - 110.0f, 11, 90, 34 };
     if (button(menuButton, "Menu")) app->screen = SCREEN_MENU;
@@ -477,7 +656,7 @@ void drawUnderTable(App *app) {
         if (game->calledBall > 0 && !game->balls[game->calledBall].pocketed) {
             Ball *target = &game->balls[game->calledBall];
             Vector2 from = { memoryBoxX(game->calledBall) + 20, memoryY };
-            Vector2 to = { target->x, target->y + BALL_RADIUS + 4 };
+            Vector2 to = tableToScreen(target->x, target->y, 0);   // where the ball is in the 3D view
             float pulse = 0.3f + 0.15f * sinf((float)GetTime() * 5);
             DrawLineBezier(from, to, 1.5f, Fade(YELLOW, pulse));
         }
@@ -529,7 +708,7 @@ float drawLessonContent(Level *level, float x, float y, float width) {
     drawText("Example", x, y, 14, COLOUR_MUTED);
     y += 20;
     float codeHeight = countLines(level->example) * lineHeight(15) + 16;
-    DrawRectangle((int)x, (int)y, (int)width, (int)codeHeight, COLOUR_CODE_BG);
+    drawCodeBackground(Rectangle{ x, y, width, codeHeight });
     drawCode(level->example, x + 10, y + 8, 15, width - 20);
     y += codeHeight + 14;
 
@@ -551,7 +730,7 @@ void drawLessonPanel(App *app) {
     else drawBold("LESSON", x, y, 15, COLOUR_ACCENT);
     drawText(TextFormat("Level %d - Chapter %d: %s", app->questionLevel, level->chapter, chapterName(level->chapter)),
              x, y + 22, 14, COLOUR_MUTED);
-    drawBold(level->title, x, y + 44, 26, COLOUR_TEXT);
+    drawTitle(level->title, x, y + 42, 28, COLOUR_TEXT);
 
     drawLessonContent(level, x, y + 84, width);
 
@@ -646,8 +825,9 @@ float drawOrderTiles(App *app, Task *task, float x, float y, float width, bool l
     float shake = 0;
     if (app->wrongTimer > 0) shake = sinf(app->wrongTimer * 60) * 6 * (app->wrongTimer / 0.4f);
     Rectangle box = { x + shake, y, width, shownLines * 24.0f + 12 };
-    DrawRectangleRec(box, COLOUR_CODE_BG);
-    DrawRectangleLinesEx(box, 2, Color{ 70, 75, 90, 255 });
+    DrawRectangleRounded(box, roundnessFor(box, 6), 8, COLOUR_CODE_BG);
+    DrawRectangleRoundedLinesEx(box, roundnessFor(box, 6), 8, 1, app->wrongTimer > 0 ? COLOUR_BAD : Color{ 58, 60, 72, 255 });
+    app->answerArea = box;
 
     float highlightLine = -1;
     if (app->phase == PHASE_RUNNING && !app->practising) highlightLine = (int)(app->runTimer / SECONDS_PER_LINE);
@@ -655,7 +835,7 @@ float drawOrderTiles(App *app, Task *task, float x, float y, float width, bool l
     int removeIndex = -1;
     for (int i = 0; i < app->chosenCount; i++) {
         Rectangle line = { box.x + 4, box.y + 6 + i * 24.0f, box.width - 8, 22 };
-        if (i == (int)highlightLine) DrawRectangleRec(line, Color{ 40, 90, 50, 255 });
+        if (i == (int)highlightLine) drawRunningBar(line);
         else if (!locked && CheckCollisionPointRec(mouse, line)) DrawRectangleRec(line, Color{ 45, 50, 64, 255 });
         drawText(TextFormat("%d", i + 1), line.x + 4, line.y + 3, 14, COLOUR_MUTED);
         drawCode(task->tiles[app->chosen[i]], line.x + 28, line.y + 3, 14, line.width - 40);
@@ -709,7 +889,7 @@ void drawTaskArea(App *app, float x, float y, float width, float bottom) {
     // The question and its code
     y += drawWrapped(task->task, x, y, width, 15, COLOUR_TEXT) + 6;
     float codeHeight = countLines(task->code) * lineHeight(14) + 14;
-    DrawRectangle((int)x, (int)y, (int)width, (int)codeHeight, COLOUR_CODE_BG);
+    drawCodeBackground(Rectangle{ x, y, width, codeHeight });
     if (task->kind == TASK_BUG) drawNumberedCode(task->code, x + 10, y + 7, 14);
     else drawCode(task->code, x + 10, y + 7, 14, width - 20);
     y += codeHeight + 10;
@@ -741,6 +921,7 @@ void drawTaskArea(App *app, float x, float y, float width, float bottom) {
         if (task->kind != TASK_TYPE) boxLines = 1;
         app->answerBox.area = Rectangle{ x + shake, y, width, boxLines * lineHeight(CODE_SIZE) + 16 };
         drawCodeBox(&app->answerBox, answerHighlight);
+        app->answerArea = app->answerBox.area;
         y += app->answerBox.area.height + 10;
     }
 
@@ -780,13 +961,14 @@ void drawTaskArea(App *app, float x, float y, float width, float bottom) {
         drawText("Last hint - the layout:", x, y, 14, COLOUR_ACCENT);
         y += 20;
         float layoutHeight = countLines(task->layout) * lineHeight(14) + 12;
-        DrawRectangle((int)x, (int)y, (int)width, (int)layoutHeight, COLOUR_CODE_BG);
-        DrawRectangleLinesEx(Rectangle{ x, y, width, layoutHeight }, 1, Fade(COLOUR_ACCENT, 0.6f));
+        drawCodeBackground(Rectangle{ x, y, width, layoutHeight });
+        DrawRectangleRoundedLinesEx(Rectangle{ x, y, width, layoutHeight }, roundnessFor(Rectangle{ x, y, width, layoutHeight }, 6), 8, 1, Fade(COLOUR_ACCENT, 0.6f));
         drawCode(task->layout, x + 10, y + 6, 14, width - 20);
         y += layoutHeight + 6;
     } else {
         for (int h = 0; h < app->hintsShown && h < 3; h++) {
-            y += drawWrapped(TextFormat("Hint %d: %s", h + 1, task->hints[h]), x, y, width, 14, COLOUR_ACCENT) + 2;
+            float drop = (h == app->hintsShown - 1) ? bounceIn(app->hintTimer) : 0;   // the newest one bounces in
+            y += drawWrapped(TextFormat("Hint %d: %s", h + 1, task->hints[h]), x, y - drop, width, 14, COLOUR_ACCENT) + 2;
         }
     }
 
@@ -800,8 +982,8 @@ void drawTaskArea(App *app, float x, float y, float width, float bottom) {
             guideClue(task, task->code, step, clue, sizeof(clue));
             if (guideClueIsCode(task, step)) {
                 float clueHeight = countLines(clue) * lineHeight(14) + 12;
-                DrawRectangle((int)x, (int)y, (int)width, (int)clueHeight, COLOUR_CODE_BG);
-                DrawRectangleLinesEx(Rectangle{ x, y, width, clueHeight }, 1, Fade(COLOUR_GOOD, 0.6f));
+                drawCodeBackground(Rectangle{ x, y, width, clueHeight });
+                DrawRectangleRoundedLinesEx(Rectangle{ x, y, width, clueHeight }, roundnessFor(Rectangle{ x, y, width, clueHeight }, 6), 8, 1, Fade(COLOUR_GOOD, 0.6f));
                 drawCode(clue, x + 10, y + 6, 14, width - 20);
                 y += clueHeight + 6;
             } else {
@@ -817,9 +999,12 @@ void drawTaskArea(App *app, float x, float y, float width, float bottom) {
     if (app->feedback[0] != '\0') {
         Color colour = COLOUR_BAD;
         if (app->feedbackGood) colour = COLOUR_GOOD;
-        y += drawWrapped(app->feedback, x, y + 4, width, 15, colour) + 8;
+        y += drawWrapped(app->feedback, x, y + 4 - bounceIn(app->hintTimer), width, 15, colour) + 8;
     }
     EndScissorMode();
+
+    // A right answer: a band of green light sweeps across it
+    drawCorrectSweep(app);
 
     // How far can it scroll? (the content's height minus the room there is)
     float contentHeight = y + app->taskScroll - top;
@@ -875,6 +1060,7 @@ void drawTaskArea(App *app, float x, float y, float width, float bottom) {
     if (app->hintsShown < 4) {
         if (button(Rectangle{ x + 112, buttonY, 150, 38 }, hintLabel)) {
             app->hintsShown++;
+            app->hintTimer = 0;         // it bounces in
             app->taskScroll = 100000;   // show the new hint (limited to the end next frame)
         }
     } else {
@@ -886,6 +1072,7 @@ void drawTaskArea(App *app, float x, float y, float width, float bottom) {
         if (app->guideStep > 0) guideLabel = TextFormat("Next clue (%d/%d)", app->guideStep + 1, guideClueCount(task));
         if (button(Rectangle{ x + 274, buttonY, 170, 38 }, guideLabel)) {
             app->guideStep++;
+            app->hintTimer = 0;
             app->taskScroll = 100000;   // show the new clue
         }
     }
@@ -915,7 +1102,7 @@ void drawCodePanel(App *app) {
     if (app->reviewMode) heading = TextFormat("Review - Level %d - %s", app->questionLevel, chapterName(level->chapter));
     if (app->usingMadeUp) heading = TextFormat("Level %d - a new question in the same style", app->questionLevel);
     drawText(heading, x, y, 14, COLOUR_MUTED);
-    drawBold(level->title, x, y + 18, 22, COLOUR_TEXT);
+    drawTitle(level->title, x, y + 16, 24, COLOUR_TEXT);
     if (app->phase == PHASE_RUNNING && app->viewingDiagram) {
         if (drawDiagramView(app, x, y + 50, width, SCREEN_HEIGHT - 52.0f, "Take the shot >")) {
             app->viewingDiagram = false;
@@ -934,9 +1121,9 @@ void drawShotPanel(App *app) {
     float width = SCREEN_WIDTH - x - 20;
     float y = 70;
 
-    if (app->phase == PHASE_AIM) drawBold("Shot unlocked!", x, y, 24, COLOUR_GOOD);
-    else if (app->phase == PHASE_GAME_OVER) drawBold("Game over", x, y, 24, COLOUR_ACCENT);
-    else drawBold("Balls rolling...", x, y, 24, COLOUR_TEXT);
+    if (app->phase == PHASE_AIM) drawTitle("Shot unlocked!", x, y - 2, 26, COLOUR_GOOD);
+    else if (app->phase == PHASE_GAME_OVER) drawTitle("Game over", x, y - 2, 26, COLOUR_ACCENT);
+    else drawTitle("Balls rolling...", x, y - 2, 26, COLOUR_TEXT);
     if (app->phase != PHASE_GAME_OVER) {
         drawText(TextFormat("%s to shoot", game->players[game->currentPlayer].name), x, y + 32, 15, COLOUR_MUTED);
     }
@@ -958,37 +1145,26 @@ void drawShotPanel(App *app) {
     int lines = countLines(answer);
     if (app->callNeeded) lines++;
     float codeHeight = lines * lineHeight(15) + 16;
-    DrawRectangle((int)x, (int)y, (int)width, (int)codeHeight, COLOUR_CODE_BG);
+    drawCodeBackground(Rectangle{ x, y, width, codeHeight });
     float codeY = y + 8;
     codeY += drawCode(answer, x + 10, codeY, 15, width - 20);
     if (app->callNeeded) drawCode(app->callBox.text, x + 10, codeY, 15, width - 20);
     y += codeHeight + 18;
 
-    // Its variables, like the data tables in the Pointers lecture.
-    // power changes live while you charge the shot: powerPtr points at it.
-    drawDataTableHeader(x, y);
-    y += 28;
-    drawDataRow(x, y, "power", "int", TextFormat("%d", (int)app->power));
-    y += 24;
-    drawDataRow(x, y, "powerPtr", "int *", "&power");
-    y += 24;
-    if (reached(app, CALL_LEVEL)) {
-        if (game->calledBall > 0) {
-            drawDataRow(x, y, "target", "Ball *", TextFormat("%d", addressOf(game->calledBall)));
-            y += 24;
-            drawDataRow(x, y, "*target", "Ball", TextFormat("ball %d", game->calledBall));
-        } else {
-            drawDataRow(x, y, "target", "Ball *", "nullptr (no call)");
-        }
-        y += 24;
-    }
-    y += 16;
+    // Its variables, drawn as memory like the diagrams in the Pointers lecture.
+    // power changes live while you charge the shot: powerPtr points at it (memory.cpp).
+    y += drawMemoryPanel(app, x, y, width) + 6;
 
     // Power bar, instructions and upgrades
     if (app->phase == PHASE_AIM || app->phase == PHASE_STRIKE) {
         drawPowerBar(x, y, width - 60, app->power, false, true);
         y += 80;
-        drawWrapped("Aim with the mouse. Hold the left button to charge the power, then let go to shoot.", x, y, width, 15, COLOUR_TEXT);
+        if (isTopDownView()) {
+            drawWrapped("Point at where to aim. Hold the left button to charge the power, then let go to shoot.", x, y, width, 15, COLOUR_TEXT);
+        } else {
+            drawWrapped("Move the mouse left or right to aim (or A/D; Shift to aim slowly). Hold the left button to charge, let go to shoot.",
+                        x, y, width, 15, COLOUR_TEXT);
+        }
         y += 48;
         if (app->learner->levelsDone >= AIM_GUIDE_LEVEL) drawText("Upgrade: ghost ball", x, y, 13, COLOUR_GOOD);
         if (app->learner->levelsDone >= BALL_PATH_LEVEL) drawText("Upgrade: ball path", x + 170, y, 13, COLOUR_GOOD);
@@ -1003,13 +1179,12 @@ void drawGameOver(App *app) {
     DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, Fade(BLACK, 0.65f));
 
     Rectangle box = { SCREEN_WIDTH / 2 - 320.0f, 170, 640, 340 };
-    DrawRectangleRec(box, COLOUR_PANEL);
-    DrawRectangleLinesEx(box, 2, COLOUR_ACCENT);
+    drawPopupBox(box);
 
     float x = box.x + 40;
     float y = box.y + 30;
     float pulse = 1 + 0.04f * sinf((float)GetTime() * 4);
-    drawBold(game->winMessage, x, y, 36 * pulse, COLOUR_ACCENT);
+    drawGlowTitle(game->winMessage, x, y - 4, 38 * pulse, COLOUR_ACCENT, 1);
     y += 56;
     y += drawWrapped(game->reason, x, y, box.width - 80, 17, COLOUR_TEXT) + 16;
 
@@ -1037,8 +1212,7 @@ void drawSlideOverlay(App *app) {
 
     DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, Fade(BLACK, 0.7f));
     Rectangle box = { 140, 40, SCREEN_WIDTH - 280.0f, SCREEN_HEIGHT - 80.0f };
-    DrawRectangleRec(box, COLOUR_PANEL);
-    DrawRectangleLinesEx(box, 2, COLOUR_ACCENT);
+    drawPopupBox(box);
 
     drawBold("FROM YOUR NOTES", box.x + 24, box.y + 18, 15, COLOUR_ACCENT);
     drawBold(level->slideTitle, box.x + 24, box.y + 40, 20, COLOUR_TEXT);
@@ -1107,7 +1281,7 @@ void drawWelcomePanel(App *app) {
     float width = SCREEN_WIDTH - x - 20;
     float y = 84;
 
-    drawBold(TextFormat("Welcome back, %s!", player->name), x, y, 26, COLOUR_ACCENT);
+    drawTitle(TextFormat("Welcome back, %s!", player->name), x, y - 2, 28, COLOUR_ACCENT);
     y += 52;
     int level = currentLevel(app);
     y += drawWrapped(TextFormat("You're on Level %d: %s.", level, getLevel(level)->title), x, y, width, 17, COLOUR_TEXT) + 14;
@@ -1123,10 +1297,9 @@ void drawWelcomePanel(App *app) {
 void drawRewindOverlay(App *app) {
     DrawRectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, Fade(BLACK, 0.7f));
     Rectangle box = { 150, 40, SCREEN_WIDTH - 300.0f, SCREEN_HEIGHT - 80.0f };
-    DrawRectangleRec(box, COLOUR_PANEL);
-    DrawRectangleLinesEx(box, 2, COLOUR_ACCENT);
+    drawPopupBox(box);
 
-    drawBold("REWIND", box.x + 24, box.y + 18, 24, COLOUR_ACCENT);
+    drawTitle("REWIND", box.x + 24, box.y + 16, 26, COLOUR_ACCENT);
     drawWrapped("Pick a level to go over again: its lesson, then its questions. No extra shots - "
                 "you come back to this shot afterwards.", box.x + 24, box.y + 52, box.width - 48, 15, COLOUR_MUTED);
 
@@ -1190,25 +1363,6 @@ void endRewind(App *app) {
 }
 
 // The unlock banner slides down, waits, then slides back up
-void drawBanner(App *app) {
-    if (app->bannerTimer <= 0) return;
-    float total = 3.2f;
-    float shown = total - app->bannerTimer;
-    float y = 70;
-    if (shown < 0.3f) y = -110 + (shown / 0.3f) * 180;
-    if (app->bannerTimer < 0.3f) y = 70 - (1 - app->bannerTimer / 0.3f) * 180;
-
-    Rectangle box = { SCREEN_WIDTH / 2 - 330.0f, y, 660, 92 };
-    DrawRectangleRounded(Rectangle{ box.x + 4, box.y + 6, box.width, box.height }, 0.2f, 8, Fade(BLACK, 0.5f));
-    DrawRectangleRounded(box, 0.2f, 8, Color{ 50, 44, 18, 255 });
-    float glow = 0.5f + 0.5f * sinf((float)GetTime() * 6);
-    DrawRectangleRoundedLinesEx(box, 0.2f, 8, 3, Fade(COLOUR_ACCENT, 0.6f + 0.4f * glow));
-
-    float titleWidth = textWidth(app->bannerTitle, 26);
-    drawBold(app->bannerTitle, box.x + (box.width - titleWidth) / 2, box.y + 14, 26, COLOUR_ACCENT);
-    float textW = textWidth(app->bannerText, 16);
-    drawText(app->bannerText, box.x + (box.width - textW) / 2, box.y + 56, 16, COLOUR_TEXT);
-}
 
 // ============================================================
 // The game screen: update, then draw
@@ -1219,9 +1373,11 @@ void playScreen(App *app) {
     float dt = GetFrameTime();
     app->phaseTimer += dt;
     if (app->wrongTimer > 0) app->wrongTimer -= dt;
+    app->correctTimer += dt;
+    app->hintTimer += dt;
 
     // ---------- Update ----------
-    bool blocked = app->showSlide || app->showRewind;   // nothing else reacts while a window is open
+    bool blocked = app->showSlide || app->showRewind || unlockCardOpen();   // nothing else reacts while a window is open
     if (app->showRewind && IsKeyPressed(KEY_ESCAPE)) app->showRewind = false;
     if (!blocked && IsKeyPressed(KEY_ESCAPE)) {
         app->screen = SCREEN_MENU;
@@ -1237,7 +1393,11 @@ void playScreen(App *app) {
             updateDiagram(app, dt);   // the player moves on with "Take the shot"
         } else {
             app->runTimer += dt;
-            if (app->runTimer > (linesToRun(app) + 1) * SECONDS_PER_LINE) setPhase(app, PHASE_AIM);
+            if (app->runTimer > (linesToRun(app) + 1) * SECONDS_PER_LINE) {
+                setPhase(app, PHASE_AIM);
+                spawnPopup("SHOT UNLOCKED!", TABLE_VIEW.x + TABLE_VIEW.width / 2, TABLE_VIEW.y + 80, COLOUR_GOOD, 48);
+                playSoundPitched(SOUND_COMBO, 0.5f, 0.8f);
+            }
         }
     } else if (app->phase == PHASE_AIM) {
         updateAimPhase(app, dt);
@@ -1245,36 +1405,24 @@ void playScreen(App *app) {
         app->strikeTimer += dt;
         if (app->strikeTimer >= 0.09f) {
             startShot(game, app->aimX, app->aimY, app->power);
-            playSound(SOUND_CUE, 0.3f + app->power / 150);
-            if (game->isBreak && app->power > 70) shakeScreen(5);
+            fxStrike(game, app->power);   // sound, chalk dust, shake and hit-stop (fx.cpp)
             setPhase(app, PHASE_ROLLING);
         }
     } else if (app->phase == PHASE_ROLLING) {
-        updateBalls(game, dt);
-        if (!ballsMoving(game)) finishShot(app);
+        stepBalls(app, dt);
+        if (!ballsMoving(game) && !slowMotion) finishShot(app);   // (let the 8 finish dropping in slow motion first)
     }
     updateShotLog(app);
 
-    // ---------- Draw ----------
-    ClearBackground(COLOUR_BG);
-    DrawRectangle(PANEL_X, 56, SCREEN_WIDTH - PANEL_X, SCREEN_HEIGHT - 56, COLOUR_PANEL);
+    // T switches between the 3D view and looking straight down (not while typing code)
+    if (!blocked && app->phase != PHASE_CODE && IsKeyPressed(KEY_T)) toggleTopDownView();
 
-    // The table shakes a little on big hits
-    Vector2 shake = updateShake(dt);
-    rlPushMatrix();
-    rlTranslatef(shake.x, shake.y, 0);
-    drawTable();
-    if (app->phase == PHASE_AIM) {
-        drawAimGuide(game, app->aimX, app->aimY, app->learner->levelsDone >= AIM_GUIDE_LEVEL, app->learner->levelsDone >= BALL_PATH_LEVEL);
-    }
-    drawBalls(game);
-    drawTargetRing(game);
-    if (app->phase == PHASE_AIM || app->phase == PHASE_STRIKE) {
-        float strike = 0;
-        if (app->phase == PHASE_STRIKE) strike = app->strikeTimer / 0.09f;
-        drawCueStick(game, app->aimX, app->aimY, app->power, strike, app->learner->levelsDone >= GOLD_CUE_LEVEL);
-    }
-    rlPopMatrix();
+    // ---------- Draw ----------
+    drawBackground();
+    drawPanel(SIDE_PANEL);
+
+    drawTableView();   // the 3D table (drawn by renderTable3D in main, before this frame started)
+    drawComboMeter(game, TABLE_VIEW.x + 12, TABLE_VIEW.y + 30);
 
     blockButtons(blocked);
     drawUnderTable(app);
@@ -1287,7 +1435,7 @@ void playScreen(App *app) {
 
     // Each new panel fades in
     if (app->phaseTimer < 0.25f) {
-        DrawRectangle(PANEL_X, 56, SCREEN_WIDTH - PANEL_X, SCREEN_HEIGHT - 56, Fade(COLOUR_PANEL, 1 - app->phaseTimer / 0.25f));
+        drawPanelCover(SIDE_PANEL, 1 - app->phaseTimer / 0.25f);
     }
 
     drawTopBar(app);
@@ -1357,6 +1505,8 @@ void practiceScreen(App *app) {
     float dt = GetFrameTime();
     app->phaseTimer += dt;
     if (app->wrongTimer > 0) app->wrongTimer -= dt;
+    app->correctTimer += dt;
+    app->hintTimer += dt;
     if (!app->showSlide) {
         if (IsKeyPressed(KEY_ESCAPE)) {
             if (app->rewinding) endRewind(app);
@@ -1368,12 +1518,12 @@ void practiceScreen(App *app) {
     }
 
     Level *level = getLevel(app->questionLevel);
-    ClearBackground(COLOUR_BG);
+    drawBackground();
     blockButtons(app->showSlide);
     const char *kind = "the level's own question";
     if (app->usingMadeUp) kind = "a new question in the same style";
     if (app->rewinding) {
-        drawBold("REWIND", 30, 16, 30, COLOUR_ACCENT);
+        drawTitle("REWIND", 30, 14, 32, COLOUR_ACCENT);
         drawText(TextFormat("%s: Level %d - %s. No extra shots: come back to your shot when you're ready.",
                             app->learner->name, app->questionLevel, kind), 30, 64, 15, COLOUR_MUTED);
         if (button(Rectangle{ SCREEN_WIDTH - 250.0f, 18, 230, 40 }, "Back to the shot >")) {
@@ -1382,7 +1532,7 @@ void practiceScreen(App *app) {
             return;
         }
     } else {
-        drawBold("PRACTICE", 30, 16, 30, COLOUR_ACCENT);
+        drawTitle("PRACTICE", 30, 14, 32, COLOUR_ACCENT);
         drawText(TextFormat("%s: Level %d - %s - %s", app->learner->name, app->questionLevel, chapterName(level->chapter), kind),
                  30, 64, 15, COLOUR_MUTED);
         if (button(Rectangle{ SCREEN_WIDTH - 170.0f, 18, 150, 40 }, "Back")) app->screen = SCREEN_CODEX;
@@ -1392,12 +1542,12 @@ void practiceScreen(App *app) {
     if (button(Rectangle{ SCREEN_WIDTH - 680.0f, 18, 120, 40 }, "Slide")) app->showSlide = true;
 
     // The lesson on the left, like the info pages in The Farmer Was Replaced
-    DrawRectangle(20, 88, 470, SCREEN_HEIGHT - 100, COLOUR_PANEL);
-    drawBold(level->title, 36, 102, 24, COLOUR_TEXT);
+    drawPanel(Rectangle{ 20, 88, 470, SCREEN_HEIGHT - 100.0f });
+    drawTitle(level->title, 36, 100, 26, COLOUR_TEXT);
     drawLessonContent(level, 36, 140, 438);
 
     // The question on the right
-    DrawRectangle(505, 88, SCREEN_WIDTH - 525, SCREEN_HEIGHT - 100, COLOUR_PANEL);
+    drawPanel(Rectangle{ 505, 88, SCREEN_WIDTH - 525.0f, SCREEN_HEIGHT - 100.0f });
     if (app->viewingDiagram) {
         if (drawDiagramView(app, 525, 102, SCREEN_WIDTH - 565.0f, SCREEN_HEIGHT - 62.0f, "Back to the question")) {
             app->viewingDiagram = false;
@@ -1407,7 +1557,7 @@ void practiceScreen(App *app) {
     }
 
     if (app->phaseTimer < 0.25f) {
-        DrawRectangle(505, 88, SCREEN_WIDTH - 525, SCREEN_HEIGHT - 100, Fade(COLOUR_PANEL, 1 - app->phaseTimer / 0.25f));
+        drawPanelCover(Rectangle{ 505, 88, SCREEN_WIDTH - 525.0f, SCREEN_HEIGHT - 100.0f }, 1 - app->phaseTimer / 0.25f);
     }
     blockButtons(false);
     if (app->showSlide) drawSlideOverlay(app);
